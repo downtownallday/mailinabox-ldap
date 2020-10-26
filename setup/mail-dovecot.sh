@@ -75,7 +75,7 @@ cp conf/dovecot-mailboxes.conf /etc/dovecot/conf.d/15-mailboxes.conf
 # since we're using Dovecot to handle SMTP authentication?).
 tools/editconf.py /etc/dovecot/conf.d/10-auth.conf \
 	disable_plaintext_auth=yes \
-	"auth_mechanisms=plain login"
+	"auth_mechanisms=plain login oauthbearer xoauth2"
 
 # Enable SSL, specify the location of the SSL certificate and private key files.
 # Use Mozilla's "Intermediate" recommendations at https://ssl-config.mozilla.org/#server=dovecot&server-version=2.2.33&config=intermediate&openssl-version=1.1.1,

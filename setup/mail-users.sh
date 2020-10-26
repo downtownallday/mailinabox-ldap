@@ -24,6 +24,51 @@ sed -i "s/#*\(\!include auth-system.conf.ext\)/#\1/"  /etc/dovecot/conf.d/10-aut
 sed -i "s/#*\(\!include auth-sql.conf.ext\)/#\1/"  /etc/dovecot/conf.d/10-auth.conf
 sed -i "s/#\(\!include auth-ldap.conf.ext\)/\1/"  /etc/dovecot/conf.d/10-auth.conf
 
+# oauth2 authentication
+if grep -F "!include auth-oauth2.conf.ext" /etc/dovecot/conf.d/10-auth.conf >/dev/null; then
+    sed -i "s/#\(\!include auth-oauth2.conf.ext\)/\1/"  /etc/dovecot/conf.d/10-auth.conf
+else
+    cat >>/etc/dovecot/conf.d/10-auth.conf <<EOF
+!include auth-oauth2.conf.ext
+EOF
+fi
+    
+
+cat > /etc/dovecot/conf.d/auth-oauth2.conf.ext <<EOF
+passdb {
+  driver = oauth2
+  mechanisms = xoauth2 oauthbearer
+  args = /etc/dovecot/dovecot-oauth2.conf.ext
+}
+EOF
+
+cat > /etc/dovecot/dovecot-oauth2.conf.ext <<EOF
+# url for verifying token validity
+tokeninfo_url = http://dovecot:$(generate_password 32)@localhost:10222/oauth/v1/tokeninfo?access_token=
+
+# used to gather "extra fields and other information" - see rfc7662
+introspection_url = http://localhost:10222/oauth/v1/introspect
+
+# "auth" - use "Authorization: Bearer" header plus introspection
+introspection_mode = auth
+
+# Attribute name for checking whether account is disabled (optional)
+active_attribute = active
+
+# Expected value in active_attribute (empty = require present, but anything goes)
+active_value = true
+
+# space separated list of scopes of validity
+scope = mailbox
+
+# json response (tokeninfo or introspection) attribute for username
+username_attribute = username
+
+# debugging
+debug = yes
+rawlog_dir = /tmp/dovecot-oauth2
+EOF
+
 
 # Specify how the database is to be queried for user authentication (passdb)
 # and where user mailboxes are stored (userdb).

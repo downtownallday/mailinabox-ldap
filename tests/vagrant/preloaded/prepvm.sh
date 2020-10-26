@@ -28,6 +28,8 @@ fi
 
 if $dry_run; then
     echo "WARNING: dry run is TRUE, no changes will be made"
+else
+    export DEBIAN_FRONTEND=noninteractive
 fi
 
 

@@ -5,7 +5,10 @@ wait_for_apt() {
     #
     # returns non-zero if waiting times out (currently ~600 seconds)
     local count=0
-    while fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ||
+          fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 ||
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1
+    do
         sleep 6
         let count+=1
         if [ $count -eq 1 ]; then

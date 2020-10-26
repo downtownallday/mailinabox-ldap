@@ -1,11 +1,10 @@
-
 Vagrant.configure("2") do |config|
 
   config.vm.synced_folder "../../..", "/mailinabox", id: "mailinabox", automount: false
   config.vm.provision "file", source:"../globals.sh", destination:"globals.sh"
 
   # access management daemon via nginx (https)
-  config.vm.network "forwarded_port", guest:443, host:8443, protocol:"tcp"
+  config.vm.network "public_network"
   
   if File.file?("../preloaded/preloaded-ubuntu-bionic64.box")
     config.vm.box = "preloaded-ubuntu-bionic64"
@@ -16,15 +15,21 @@ Vagrant.configure("2") do |config|
     config.vm.box = "ubuntu/bionic64"
   end
   
-  # vanilla install
+  # vanilla install plus extra debug output and other tests-of-the-day
 
-  config.vm.define "vanilla" do |m1|
+  config.vm.define "oauth2" do |m1|
     m1.vm.provision :shell, :inline => <<-SH
 source globals.sh || exit 1
-export PRIMARY_HOSTNAME=vanilla.local
+export PRIMARY_HOSTNAME=oauth2.local
 export FEATURE_MUNIN=false
+export FEATURE_NEXTCLOUD=false
 cd /mailinabox
-tests/system-setup/vanilla.sh; rc=$?
+tests/system-setup/vanilla.sh \
+   --enable-mod=dovecot-debug \
+   --enable-mod=roundcube-master \
+   --enable-mod=roundcube-debug \
+   --enable-mod=roundcube-test-oauth
+rc=$?
 echo "EXITCODE: $rc"
 SH
   end

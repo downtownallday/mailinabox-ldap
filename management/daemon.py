@@ -4,6 +4,7 @@ import multiprocessing.pool, subprocess
 from functools import wraps
 
 from flask import Flask, request, render_template, abort, Response, send_from_directory, make_response
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import auth, utils, mfa
 from mailconfig import get_mail_users, get_mail_users_ex, get_admins, add_mail_user, set_mail_password, set_mail_display_name, remove_mail_user
@@ -32,6 +33,7 @@ with open(os.path.join(os.path.dirname(me), "csr_country_codes.tsv")) as f:
 		csr_country_codes.append((code, name))
 
 app = Flask(__name__, template_folder=os.path.abspath(os.path.join(os.path.dirname(me), "templates")))
+app.wsgi_app = ProxyFix(app.wsgi_app)
 
 # Decorator to protect views that require a user with 'admin' privileges.
 def authorized_personnel_only(viewfunc):
@@ -658,6 +660,11 @@ def log_failed_login(request):
 
 
 # APP
+
+
+from daemon_oauth2 import add_oauth2
+add_oauth2(app, env, auth_service, log_failed_login)
+
 
 if __name__ == '__main__':
 	if "DEBUG" in os.environ: app.debug = True

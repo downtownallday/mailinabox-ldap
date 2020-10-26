@@ -8,6 +8,12 @@ os: linux
 dist: bionic
 
 jobs:
+  exclude:
+    - name: remote-nextcloud-docker
+
+  exclude:
+    - name: upgrade-from-upstream
+      
   fast_finish: true
   include:
   # JOB: MiaB-LDAP connected to a remote Nextcloud

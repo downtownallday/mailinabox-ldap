@@ -7,6 +7,8 @@ Vagrant.configure("2") do |config|
   if File.file?("preloaded/preloaded-ubuntu-bionic64.box")
     config.vm.box = "preloaded-ubuntu-bionic64"
     config.vm.box_url = "file://" + Dir.pwd + "/preloaded/preloaded-ubuntu-bionic64.box"
+    # do NOT check the correct additions version when booting this machine
+    config.vbguest.auto_update = false
   else
     config.vm.box = "ubuntu/bionic64"
   end
