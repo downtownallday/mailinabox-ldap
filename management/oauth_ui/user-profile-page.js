@@ -189,9 +189,7 @@ const user_profile_page = {
         /*
          * Retrieve the authentication state of the server for the
          * session and obtain other display info. Is the user logged
-         * in? What is the descriptive name of the client_id from the
-         * request url?  What are the allowed scopes and what are
-         * their descriptive names? Are the scopes "dangerous"?
+         * in?
          */
         retrieve_state: function() {
             ++this.loading;
@@ -213,7 +211,3 @@ const user_profile_page = {
     }
 };
 
-
-function create_vue(v) {
-    new Vue(v);
-}
