@@ -1,7 +1,7 @@
 # -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 
 import sqlite3
-import os
+import os, stat
 import json
 import logging
 import time
@@ -50,7 +50,13 @@ class SqliteStorage(Storage):
 		parent = os.path.dirname(db_path)
 		if not os.path.exists(parent):
 			os.makedirs(parent)
-			os.chmod(parent, 700)
+			os.chmod(parent,
+					 stat.S_IRWXU |
+					 stat.S_IRGRP |
+					 stat.S_IXGRP |
+					 stat.S_IROTH |
+					 stat.S_IXOTH
+			)
 			
 		# update the schema to the latest version, or create it
 		db_exists = os.path.exists(db_path)
@@ -58,7 +64,10 @@ class SqliteStorage(Storage):
 
 		# if the database is new, set file permissions
 		if not db_exists:
-			os.chmod(db_path, 600)
+			os.chmod(db_path,
+					 stat.S_IRUSR |
+					 stat.S_IWUSR
+			)
 
 		# garbage collect on startup
 		self.gc()
