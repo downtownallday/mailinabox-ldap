@@ -3,6 +3,7 @@
 import os
 import logging
 import json
+from datetime import timedelta
 
 from flask import request, session, url_for, redirect, jsonify, send_from_directory
 from functools import wraps
@@ -35,16 +36,35 @@ class MyStorage(SqliteStorage, MiabClientsMixin, MiabUsersMixin):
 
 
 def add_oauth2(app, env, auth_service, log_failed_login):
-	# enable Flask sessions
+	'''
+	call this function to add authorization services
+
+	`app` is a Flask instance
+	`env` is the Mail-in-a-Box environment
+	`auth_service` is the daemon.py's KeyAuthService instance
+	`log_failed_login` is a function to be called when a login fails, which
+          will log to syslog text that in-turn causes fail2ban to advance
+	      its counter for possibly blocking the remote
+
+	'''
 	if not app.secret_key:
-		app.secret_key = auth_service.key
+		# enable Flask sessions
+		app.config.from_mapping({
+			'SECRET_KEY': auth_service.key,
+			'PERMANENT_SESSION_LIFETIME': timedelta(days=1),
+			'SESSION_COOKIE_SECURE': True,
+			'SESSION_COOKIE_SAMESITE': 'Strict',
+			'SESSION_REFRESH_EACH_REQUEST': True,
+			'SESSION_COOKIE_PATH': '/miab-ldap/',
+			'SEND_FILE_MAX_AGE_DEFAULT': timedelta(minutes=10)
+		})
 		
 	if app.debug or "DEBUG" in os.environ:
 		# init logging
 		logging.basicConfig(level=logging.DEBUG)
 		app.config.from_mapping({
 			'EXPLAIN_TEMPLATE_LOADING': True,
-			'TESTING': True
+			'SEND_FILE_MAX_AGE_DEFAULT': timedelta(seconds=10)
 		})
 		
 	# instantiate client/user/token store
@@ -68,7 +88,6 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 	# UI support
 	ui_dir = os.path.join(os.path.dirname(app.template_folder), 'oauth_ui')
 	def send_ui_file(filename):
-		log.debug("Deliver file: %s from %s" % (filename, ui_dir))
 		return send_from_directory(ui_dir, filename)
 	
 
@@ -79,8 +98,10 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 		user_id = session['user_id']
 		return storage.query_user(user_id)
 
-	def set_session_user(user_id):
+	def set_session_user(user_id, stay_signed_in):
 		session['user_id'] = user_id
+		session.permanent = stay_signed_in
+		log.debug('New session for %s (permanent=%s)' % (user_id, stay_signed_in))
 
 	def logout_session_user():
 		session.clear()
@@ -160,7 +181,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			client_id = data['client_id']
 			scope = data['scope']
 		except (KeyError, json.decoder.JSONDecodeError) as e:
-			return ("Invalid request", 400)
+			return ("Bad request", 400)
 			
 		client = storage.query_client(client_id)
 		if not client:
@@ -185,9 +206,10 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			data = json.loads(request.data)
 			username = data['username']
 			password = data['password']
+			stay_signed_in = data.get('stay_signed_in', False)
 			
 		except (KeyError, json.decoder.JSONDecodeError) as e:
-			return ("Invalid request", 400)
+			return ("Bad request", 400)
 
 		try:
 			privs = auth_service.check_user_auth(
@@ -227,7 +249,8 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			log.error("Problem authenticating user %s: %s", (username, e))
 			return ("Authentication failed", 403)
 
-		set_session_user(username)
+		set_session_user(username, stay_signed_in)
+		
 		return jsonify(
 			status="ok",
 			me=get_me()
@@ -347,7 +370,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			new_password = data['new_password']
 			
 		except (KeyError, json.decoder.JSONDecodeError) as e:
-			return ("Invalid request", 400)
+			return ("Bad request", 400)
 
 		# validate the old password
 		email = user['user_id']
@@ -396,7 +419,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			password = data['password']
 			
 		except (KeyError, json.decoder.JSONDecodeError) as e:
-			return ("Invalid request", 400)
+			return ("Bad request", 400)
 
 		# validate the current password
 		email = user['user_id']
@@ -450,7 +473,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			label = data['label']
 
 		except (KeyError, json.decoder.JSONDecodeError) as e:
-			return ("Invalid request", 400)
+			return ("Bad request", 400)
 						
 		try:
 			mfa_totp.validate_secret(secret)
@@ -470,8 +493,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 
 
 	@app.route('/user/logout')
-	@user_login_required
-	def user_logout(user):
+	def user_logout():
 		logout_session_user()
 		return send_ui_file('user-profile-page.html')
 			

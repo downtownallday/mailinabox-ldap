@@ -15,12 +15,12 @@
     <script src="https://cdn.jsdelivr.net/npm/axios"></script>
 
     <!-- our scripts -->
+    <script src="ui/authorization-classes.js"></script>
     <script src="ui/bi-components.js"></script>
     <script src="ui/error-msgs-component.js"></script>
     <script src="ui/page-layout.js"></script>
     <script src="ui/page-header.js"></script>
     <script src="ui/login-component.js"></script>
-    <script src="ui/authorization-classes.js"></script>
     <script src="ui/authorization-page.js"></script>
   </head>
     
@@ -34,7 +34,7 @@
           :loading_counter="loading">
           <template v-slot:links>
             <div>
-              <a href="/user/profile" target="profile">profile <bi name="box-arrow-up-right"></bi></a>
+              <a href="../user/profile" target="profile">my account <bi name="box-arrow-up-right"></bi></a>
             </div>
           </template>
         </page-header>
