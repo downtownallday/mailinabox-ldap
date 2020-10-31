@@ -16,7 +16,6 @@ class MyAuthorizationCodeGrant(grants.AuthorizationCodeGrant):
 	]
 
 	def save_authorization_code(self, code, request):
-		log.debug("save_authorization_code: %s" % code)
 		auth_code = G.storage.save_authorization_code(
 			code,
 			request.client,  # AuthClient object
@@ -26,6 +25,12 @@ class MyAuthorizationCodeGrant(grants.AuthorizationCodeGrant):
 			request.data.get('code_challenge'),
 			request.data.get('code_challenge_method'),
 			time.time()
+		)
+		log.info(
+			'authorization code issued for scope="%s" on-behalf-of="%s"',
+			request.scope,
+			request.user['user_id'],
+			{ 'client': request.client.client_id }
 		)
 		return auth_code
 

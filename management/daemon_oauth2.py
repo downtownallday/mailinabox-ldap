@@ -5,6 +5,9 @@ import logging
 import json
 from datetime import timedelta
 
+# setup our root logger - named so oauth/*.py files become children
+log = logging.getLogger('oauth')
+
 from flask import request, session, url_for, redirect, jsonify, send_from_directory
 from functools import wraps
 from authlib.integrations.flask_oauth2 import current_token
@@ -19,9 +22,7 @@ from oauth.MiabClientsMixin import MiabClientsMixin
 from oauth.MiabUsersMixin import MiabUsersMixin
 import oauth.oauth2 as oauth2
 import oauth.scope_properties as scope_properties
-
-log = logging.getLogger(__name__)
-
+from oauth.logging import AuthLogFormatter, AuthLogFilter
 
 # miab integration
 from mailconfig import validate_login, set_mail_password
@@ -35,6 +36,8 @@ class MyStorage(SqliteStorage, MiabClientsMixin, MiabUsersMixin):
 		super(MyStorage, self).__init__(db_path)
 
 
+
+		
 def add_oauth2(app, env, auth_service, log_failed_login):
 	'''
 	call this function to add authorization services
@@ -47,6 +50,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 	      its counter for possibly blocking the remote
 
 	'''
+	
 	if not app.secret_key:
 		# enable Flask sessions
 		app.config.from_mapping({
@@ -56,17 +60,31 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			'SESSION_COOKIE_SAMESITE': 'Strict',
 			'SESSION_REFRESH_EACH_REQUEST': True,
 			'SESSION_COOKIE_PATH': '/miab-ldap/',
-			'SEND_FILE_MAX_AGE_DEFAULT': timedelta(minutes=10)
+			'SEND_FILE_MAX_AGE_DEFAULT': timedelta(minutes=30)
 		})
 		
-	if app.debug or "DEBUG" in os.environ:
-		# init logging
-		logging.basicConfig(level=logging.DEBUG)
+	# log to stdout in development mode
+	if app.debug:
+		log_level = logging.DEBUG
+		log_handler = logging.StreamHandler()
 		app.config.from_mapping({
 			'EXPLAIN_TEMPLATE_LOADING': True,
 			'SEND_FILE_MAX_AGE_DEFAULT': timedelta(seconds=10)
 		})
+
+	# log to syslog in production mode
+	else:
+		import utils
+		log_level = logging.INFO
+		log_handler = utils.create_syslog_handler()
 		
+	logging.basicConfig(level=log_level, handlers=[])
+	log_handler.setLevel(log_level)
+	log_handler.addFilter(AuthLogFilter(app.debug, lambda:session['user_id']))
+	log_handler.setFormatter(AuthLogFormatter())
+	log.addHandler(log_handler)
+
+
 	# instantiate client/user/token store
 	storage = MyStorage(
 		env,
@@ -101,9 +119,10 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 	def set_session_user(user_id, stay_signed_in):
 		session['user_id'] = user_id
 		session.permanent = stay_signed_in
-		log.debug('New session for %s (permanent=%s)' % (user_id, stay_signed_in))
+		log.info('login permanent=%s', stay_signed_in)
 
 	def logout_session_user():
+		log.info('logout')
 		session.clear()
 
 			
@@ -120,15 +139,16 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 		'''OAuth2 authorization request
 
 		'''
+		log_opt = {	'client': request.args.get('client_id')	}
+		log.debug("authorization request", log_opt)
+
 		user = get_session_user()
 		if not user:
 			return send_ui_file('authorization-page.html')
 
 		# validate OAuth2 parameters from client
 		try:
-			log.debug("VALIDATE CONSENT REQUEST")
 			grant = authorization.validate_consent_request(end_user=user)
-			log.debug("VALIDATE SUCCEEDED, GRANT=%s" % grant)
 		except OAuth2Error as error:
 			return error.error
 
@@ -136,7 +156,8 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 		consent = request.form.get('consent', 'false')
 		if consent != 'true':
 			return send_ui_file('authorization-page.html')
-		
+
+		log.info("authorization consent granted by user", log_opt)
 		return authorization.create_authorization_response(grant_user=user)
 
 	
@@ -227,8 +248,11 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 					states = mfa.get_public_mfa_state(username, env)
 					labels = [ state["label"] for state in states ]
 				except ValueError as e2:
-					log.error('Error getting mfa state of %s: %s' %
-							  (username, e2))
+					log.error(
+						'Error getting mfa state: %s', e2,
+						{ 'username': username },
+						exc_info=e2
+					)
 					
 				return jsonify(
 					status='missing-totp-token',
@@ -246,7 +270,10 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			
 		except Exception as e:
 			# unexpected server error
-			log.error("Problem authenticating user %s: %s", (username, e))
+			log.error(
+				"Problem authenticating user: %s", e,
+				{ 'username': username },
+				exc_info=e)
 			return ("Authentication failed", 403)
 
 		set_session_user(username, stay_signed_in)
@@ -261,18 +288,26 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 	@app.route("/oauth/token", methods=['POST'])
 	def issue_token():
 		''' issue tokens '''
-		log.debug("HANDLE issue_token: POST data=%s" % request.form)
+		grant_type = request.form.get('grant_type')
+		log_opt = {	'client': request.form.get('client_id') }
+		log.debug("request token for grant_type=%s", grant_type, log_opt)
+		
 		response = authorization.create_token_response(request)
 		if response.status_code == 401:
 			# client auth failed, log the attempt
 			log_failed_login(request)
+		else:
+			log.debug('returning token: %s', response.data, log_opt)
 		return response
 
 
 	@app.route("/oauth/revoke", methods=['POST'])
 	def revoke_token():
 		''' revoke tokens '''
-		log.debug("HANDLE revoke_token: POST data=%s" % request.form)
+		log.debug(
+			"HANDLE revoke_token: POST data=%s", request.form,
+			{ 'client': request.form.get('client_id')}
+		)
 		response = authorization.create_endpoint_response(oauth2.MyRevocationEndpoint.ENDPOINT_NAME)
 		if response.status_code == 401:
 			# client auth failed, log the attempt
@@ -287,6 +322,12 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 
 		'''
 		ep = oauth2.MyIntrospectionEndpoint(authorization)
+		log.debug(
+			'introspect granted to Bearer issued-to="%s" on-behalf-of="%s"',
+			current_token.get_client_id(),
+			current_token.user_id,
+			{ 'client': 'Bearer' }
+		)
 		return jsonify(ep.introspect_token(current_token))
 
 
@@ -453,7 +494,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 		try:
 			mfa.disable_mfa(email, mfa_id, env)
 		except Exception as e:
-			log.error("Unable to disable MFA for user '%s': %s" % (user['user_id'], e))
+			log.error("Unable to disable MFA: %s", e, exc_info=e)
 			return jsonify(
 				success=False,
 				reason_key="mfa",
@@ -474,13 +515,9 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 
 		except (KeyError, json.decoder.JSONDecodeError) as e:
 			return ("Bad request", 400)
-						
+		
 		try:
 			mfa_totp.validate_secret(secret)
-		except ValueError as e:
-			return (str(e), 400)
-
-		try:
 			mfa.enable_mfa(user['user_id'], "totp", secret, token, label, env)
 		except ValueError as e:
 			return jsonify(

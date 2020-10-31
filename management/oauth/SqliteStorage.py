@@ -131,13 +131,15 @@ class SqliteStorage(Storage):
 		try:
 			conn = self.connect()
 			c = conn.cursor()
+			json_str = json.dumps(auth_code)
 			c.execute("INSERT INTO authorization_codes (code, client_id, active_until, json) VALUES (?,?,?,?)", (
 				auth_code["code"],
 				auth_code["client_id"],
 				active_until,
-				json.dumps(auth_code)
+				json_str
 			))
 			conn.commit()
+			log.debug("SAVED: %s", json_str, { 'client': client.client_id })
 			return AuthCode(auth_code)
 			
 		finally:
@@ -172,7 +174,10 @@ class SqliteStorage(Storage):
 			c.execute("DELETE FROM authorization_codes WHERE code=? AND client_id=?", (auth_code.code, auth_code.client_id))
 			rowcount = c.rowcount
 			if rowcount == 0:
-				log.debug("delete_authorization_code: no matching rows found for code=%s client_id=%s" % (auth_code.code, auth_code.client_id))
+				log.debug(
+					"delete_authorization_code: no matching rows found for code=%s", auth_code.code,
+					{ 'client': auth_code.client_id }
+				)
 			conn.commit()
 			
 		finally:
@@ -187,6 +192,7 @@ class SqliteStorage(Storage):
 	#
 
 	def save_token(self, old_token, token):
+		log_opts = { 'client': token.get_client_id() }
 		if old_token:
 			# old token must have a refresh_token
 			if not old_token.refresh_token:
@@ -194,6 +200,11 @@ class SqliteStorage(Storage):
 
 			# carry forward the refresh_token if the new token has none
 			if not token.refresh_token:
+				log.debug(
+					'carrying forward prior refresh token: %s',
+					old_token.refresh_token,
+					log_opts
+				)
 				token.refresh_token = old_token.refresh_token
 				token.refresh_expires_in = old_token.refresh_expires_in
 			
@@ -212,7 +223,7 @@ class SqliteStorage(Storage):
 				json
 			))
 			conn.commit()
-			log.debug("SAVED: %s" % json)
+			log.debug("SAVED: %s", json, log_opts)
 			
 		finally:
 			if c: c.close(); c=None
@@ -244,10 +255,21 @@ class SqliteStorage(Storage):
 				c.execute("UPDATE tokens set active_until=?, json=? WHERE access_token=?", (active_until, token.stringify(), token.access_token))
 
 			rowcount = c.rowcount
-			if rowcount == 0:
-				log.debug("revoke_token: no matching rows found for access_token==%s" % token.access_token)
-			else:
-				log.debug('REVOKED: "%s"%s' % (token.access_token, " (delayed by %ss)" % delay_s if delay_s > 0 else ''))
+			if log.isEnabledFor(logging.DEBUG):
+				log_opts = { 'client': token.get_client_id() }
+				if rowcount == 0:
+					log.debug(
+						"revoke_token: no matching rows found for access_token==%s",
+						token.access_token,
+						log_opts
+					)
+				else:
+					log.debug(
+						'REVOKED: "%s"%s',
+						token.access_token,
+						" (delayed by %ss)" % delay_s if delay_s > 0 else '',
+						log_opts
+					)
 				
 			conn.commit()
 
@@ -271,9 +293,13 @@ class SqliteStorage(Storage):
 				if token.is_active():
 					return token
 				else:
-					log.debug("access_token is not active!!")
+					log.debug(
+						"access_token is not active!!",
+						{ 'client': token.get_client_id() }
+					)
 			else:
-				log.debug('access_token not found! %s' % token_string)
+				# TODO: fail2ban?
+				log.debug('access_token not found! %s', token_string)
 			
 		finally:
 			if c: c.close(); c=None
@@ -293,9 +319,13 @@ class SqliteStorage(Storage):
 				if token.is_refresh_active():
 					return token
 				else:
-					log.debug("refresh_token is not active!!")
+					log.debug(
+						"refresh_token is not active!!",
+						{ 'client': token.get_client_id() }
+					)
 			else:
-				log.debug("refresh_token not found! %s" % refresh_token_string)
+				# TODO: fail2ban?
+				log.debug("refresh_token not found! %s", refresh_token_string)
 			
 		finally:
 			if c: c.close(); c=None
@@ -314,12 +344,14 @@ class SqliteStorage(Storage):
 			conn = self.connect()
 			c = conn.cursor()
 			c.execute("DELETE FROM authorization_codes WHERE active_until<?", (now,))
-			log.debug("GC: deleted %s rows from authorization_codes table" % c.rowcount)
+			codes_count = c.rowcount			
 			conn.commit()
 			
 			c.execute("DELETE FROM tokens WHERE active_until<?", (now,))
-			log.debug("GC: deleted %s rows from tokens table" % c.rowcount)
+			tokens_count = c.rowcount
 			conn.commit()
+
+			log.debug("GC: deleted %s rows from authorization_codes and %s from tokens", codes_count, tokens_count)
 			
 		finally:
 			self.last_gc_time = time.time()

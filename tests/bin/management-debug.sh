@@ -5,4 +5,5 @@ systemctl stop mailinabox
 source /usr/local/lib/mailinabox/env/bin/activate
 export DEBUG=1
 export FLASK_ENV=development
+python3 --version
 python3 ./daemon.py

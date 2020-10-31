@@ -28,7 +28,7 @@ php tools/editconf.php $CONF config \
     'oauth_token_uri' "http://localhost:10222/oauth/token" \
     'oauth_scope' "mailbox introspect" \
     'oauth_client_id' 'roundcube' \
-    'oauth_client_secret' '$(generate_password 32)' \
+    'oauth_client_secret' "$(generate_password 32)" \
     'oauth_identity_uri' "http://localhost:10222/oauth/v1/introspect" \
     'oauth_identity_fields' 'array("username")' \
     'oauth_verify_peer' "true" \

@@ -43,10 +43,24 @@ class MyIntrospectionEndpoint(IntrospectionEndpoint):
 	def query_token(self, token_string, token_type_hint, client):
 		token = G.storage.find_token(token_string, token_type_hint)
 		if token:
-			if client.has_introspect_permission(token):
+			perm = client.get_introspect_permission(token)
+			log_opts = { 'client': client.client_id }
+			if perm:
+				log.debug(
+					'introspect granted perm=%s issued-to="%s" on-behalf-of="%s"',
+					perm,
+					token.get_client_id(),
+					token.user_id,
+					log_opts
+				)
 				return token
 			else:
-				log.info('%s: access to token "%s": not allowed' % (client.get_client_id(), token_string))
+				log.warning(
+					'introspect denied token=%s token_type_hint=%s',
+					token_string,
+					token_type_hint,
+					log_opts
+				)
 			
 			
 	def introspect_token(self, token):
@@ -54,8 +68,11 @@ class MyIntrospectionEndpoint(IntrospectionEndpoint):
 		see: https://tools.ietf.org/html/rfc7662#section-2.2
 		'''
 		if not token or not token.is_active():
-			if token:
-				log.debug("introspect: token is inactive: %s" % token.access_token)
+			if token and log.isEnabledFor(logging.DEBUG):
+				log.debug(
+					"introspect: token is inactive: %s", token.access_token,
+					{ 'client': token.get_client_id() }
+				)
 			return {
 				"active": False
 			}
@@ -112,7 +129,7 @@ def save_token(token, request):
 		"scope": token["scope"],
 		"token_type": token["token_type"]
 	}
-
+	
 	if request.grant_type == 'authorization_code':
 		G.storage.save_token(None, Token(d))
 
@@ -120,8 +137,22 @@ def save_token(token, request):
 		G.storage.save_token(request.credential, Token(d))
 
 	else:
-		log.info('unhandled grant type "%s" from %s' % (request.grant_type, request.client.client_name))
+		log.info(
+			'unhandled grant type "%s"', request.grant_type,
+			{ 'client': request.client.client_id }
+		)
 		raise InvalidGrantError()
+
+	log_opt = { 'client': d['client_id'] }
+	token_types = [ key for key in ['access_token','refresh_token'] if d[key] ]
+	log.info(
+		'%s issued for grant_type=%s scope="%s" on-behalf-of="%s"',
+		','.join(token_types),
+		request.grant_type,
+		d['scope'],
+		d['user_id'],
+		log_opt
+	)
 
 
 

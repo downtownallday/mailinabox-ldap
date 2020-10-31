@@ -17,8 +17,17 @@ class MyRefreshTokenGrant(grants.RefreshTokenGrant):
 	INCLUDE_NEW_REFRESH_TOKEN = True
 	
 	def authenticate_refresh_token(self, refresh_token_string):
-		log.debug("authenticate_refresh_token")
 		token = G.storage.authenticate_refresh_token(refresh_token_string)
+		if log.isEnabledFor(logging.DEBUG):
+			if token:
+				log.debug(
+					'valid refresh token found: "%s"', refresh_token_string,
+					{ 'client': token.get_client_id() }
+				)
+			else:
+				log.debug('refresh token not found or inactive: "%s"',
+						  refresh_token_string)
+				
 		return token
 
 	def authenticate_user(self, credential):
@@ -26,5 +35,8 @@ class MyRefreshTokenGrant(grants.RefreshTokenGrant):
 		return G.storage.query_user(credential.user_id)
 
 	def revoke_old_credential(self, credential):
-		log.debug('revoke_old_credential: %s: %s' % (credential.client_id, credential.access_token))
+		log.debug(
+			'revoke_old_credential: %s', credential.access_token,
+			{ 'client': credential.client_id }
+		)
 		G.storage.revoke_token(credential, delay_s=5)

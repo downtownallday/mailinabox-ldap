@@ -62,7 +62,10 @@ class AuthClient(ClientMixin):
 			return True
 		if grant_type == "refresh_token":
 			return True
-		log.warning("unhandled grant_type: %s" % grant_type)
+		log.warning(
+			"unhandled grant_type: %s" % grant_type,
+			{ 'client': self.client_id }
+		)
 		return False
 
 	def check_redirect_uri(self, redirect_uri):
@@ -78,13 +81,19 @@ class AuthClient(ClientMixin):
 			ok = redirect_uri.startswith(self.redirect_uri_prefix)
 			
 		if not ok:
-			log.warning('redirect uri not valid for client="%s" redirect_uri="%s",  expecting prefix "%s"' % (self.client_name, redirect_uri, self.redirect_uri_prefix))
+			log.warning(
+				'redirect uri rejected! redirect_uri="%s", expecting prefix "%s"' % (redirect_uri, self.redirect_uri_prefix),
+				{ 'client': self.client_id }
+			)
 		return ok
 
 
 	def check_response_type(self, response_type):
 		# response_type=="code" or "token"
-		log.debug("check_response_type: %s" % response_type)
+		log.debug(
+			"check_response_type: %s" % response_type,
+			{ 'client': self.client_id }
+		)
 		return True
 
 	def check_token_endpoint_auth_method(self, method):
@@ -92,7 +101,10 @@ class AuthClient(ClientMixin):
 		if self.client_secret is None:
 			return method == 'none'
 		if method not in ['client_secret_basic', 'client_secret_post']:
-			log.warning('auth method "%s" not allowed for %s', method, self.client_id)
+			log.warning(
+				'auth method "%s" not allowed' % method,
+				{ 'client': self.client_id }
+			)
 			return False
 		return True
 
@@ -114,16 +126,20 @@ class AuthClient(ClientMixin):
 	def has_client_secret(self):
 		return self.client_secret is not None
 
-	def has_introspect_permission(self, token):
+	def get_introspect_permission(self, token):
 		# clients can introspect their own tokens
 		if token.get_client_id() == self.get_client_id():
-			return True
+			return 'introspect-self'
 		
 		# allowed to introspect any client's tokens, not just its own
 		if 'introspect-any' in self.perms:
-			return True
+			return 'introspect-any'
 		
-		return False
+		return None
+		
+	def has_introspect_permission(self, token):
+		perm = self.get_introspect_permission(token)
+		return perm or False
 
 	def get_token_policy(self, name, default_value=None):
 		if type(name) is str:
@@ -132,8 +148,14 @@ class AuthClient(ClientMixin):
 		for key in name:
 			v = v.get(key, None)
 			if v is None:
-				#log.debug('policy %s/%s: %s (default)' % (self.client_name, ".".join(name), default_value))
+				# log.debug(
+				# 	'policy %s: %s (default)' % (".".join(name), default_value),
+				# 	{ 'client': self.client_id }
+				# )
 				return default_value
-		#log.debug('policy %s/%s: %s (client)' % (self.client_name, ".".join(name), v))
+		# log.debug(
+		# 	'policy %s: %s (client)' % (".".join(name), v),
+		# 	{ 'client': self.client_id }
+		# )
 		return v
 	
