@@ -1,36 +1,26 @@
+load '../funcs.rb'
+
 Vagrant.configure("2") do |config|
 
   config.vm.synced_folder "../../..", "/mailinabox", id: "mailinabox", automount: false
-  config.vm.provision "file", source:"../globals.sh", destination:"globals.sh"
-
-  # access management daemon via nginx (https)
   config.vm.network "public_network"
-  
-  if File.file?("../preloaded/preloaded-ubuntu-bionic64.box")
-    config.vm.box = "preloaded-ubuntu-bionic64"
-    config.vm.box_url = "file://" + Dir.pwd + "/../preloaded/preloaded-ubuntu-bionic64.box"
-    # do NOT check the correct additions version when booting this machine
-    config.vbguest.auto_update = false
-  else
-    config.vm.box = "ubuntu/bionic64"
-  end
-  
+    
   # vanilla install plus extra debug output and other tests-of-the-day
 
   config.vm.define "oauth2" do |m1|
+    use_preloaded_box m1, "ubuntu/bionic64", ".."
     m1.vm.provision :shell, :inline => <<-SH
-source globals.sh || exit 1
+cd /mailinabox
+source tests/vagrant/globals.sh || exit 1
 export PRIMARY_HOSTNAME=oauth2.local
 export FEATURE_MUNIN=false
 export FEATURE_NEXTCLOUD=false
-cd /mailinabox
 tests/system-setup/vanilla.sh \
    --enable-mod=dovecot-debug \
    --enable-mod=roundcube-master \
    --enable-mod=roundcube-debug \
    --enable-mod=roundcube-test-oauth
-rc=$?
-echo "EXITCODE: $rc"
+echo "EXITCODE: $?"
 SH
   end
 
