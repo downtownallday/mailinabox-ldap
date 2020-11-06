@@ -2,6 +2,8 @@
 env:
   global:
   - MIAB_LDAP_PROJECT=true
+  - DOWNLOAD_NEXTCLOUD_FROM_GITHUB=true
+  - SKIP_SYSTEM_UPDATE=1
 
 language: shell
 os: linux
@@ -47,9 +49,7 @@ jobs:
   # JOB: Upgrade from upstream install
   - env:
       - PRIMARY_HOSTNAME=box2.abc.com
-      #- UPSTREAM_TAG=master
-      - MIAB_UPSTREAM_GIT=https://github.com/fspoettel/mailinabox.git
-      - UPSTREAM_TAG=admin-panel-2fa
+      - UPSTREAM_TAG=master
     name: upgrade-from-upstream
     install:
       - sudo tests/system-setup/upgrade-from-upstream.sh basic totpuser
@@ -57,3 +57,18 @@ jobs:
       # launch automated tests, but skip tests that require remote
       # smtp support because Travis-CI blocks outgoing port 25
       - sudo tests/runner.sh -dumpoutput -no-smtp-remote upgrade-basic upgrade-totpuser default
+
+  # JOB: unsetvars
+  - env:
+      - PRIMARY_HOSTNAME=box3.abc.com
+      - NONINTERACTIVE=1
+      - PUBLIC_IP=auto
+      - PUBLIC_IPV6=auto
+      - SKIP_NETWORK_CHECKS=1
+    name: unsetvars
+    install:
+      - sudo setup/start.sh -v -v
+      - sudo bash -c '. /etc/mailinabox.conf; . tests/lib/all.sh tests/lib; . tests/system-setup/setup-funcs.sh; init_test_system; init_miab_testing'
+    script:
+      - sudo tests/runner.sh -dumpoutput -no-smtp-remote default
+
