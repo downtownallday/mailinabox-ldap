@@ -20,6 +20,7 @@ CONF=${1:-$RCM_DIR/config/config.inc.php}
 # with /mail
 #
 php tools/editconf.php $CONF config \
+    'enable_installer' 'true' \
     'session_path' '/mail/' \
     'oauth_provider' 'miab-ldap' \
     'oauth_provider_name' 'Mail-in-a-Box LDAP' \
