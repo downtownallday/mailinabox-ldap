@@ -16,10 +16,19 @@ from authlib.oauth2.rfc6750 import BearerToken
 from authlib.oauth2.rfc6749 import TokenEndpoint
 from authlib.oauth2.rfc6749 import InvalidGrantError
 
+from authlib.oidc.core.grants import OpenIDCode
+from authlib.oidc.core import UserInfo
+
 from authlib.common.security import generate_token
+from authlib.common.encoding import (to_bytes, urlsafe_b64encode, json_b64encode, urlsafe_b64decode)
+from authlib import jose
+
 
 import time
 import logging
+import os
+import json
+import base64
 
 from .Token import Token
 from .MyAuthorizationCodeGrant import MyAuthorizationCodeGrant
@@ -156,49 +165,63 @@ def save_token(token, request):
 
 
 
-class MyAuthorizationServer(AuthorizationServer):
-	'''OAUTH2_TOKEN_EXPIRES_IN:
-
-	    default values are from authlib's BearerToken class found in
-	    authlib/oauth2/rfc6750/wrappers.py:
-
-	    They are:
-
-        authorization_code: 864000,
-        implicit: 3600,
-        password: 864000,
-        client_credentials: 864000
-
-	    Authlib code comments also refer to:
-
-		'urn:ietf:params:oauth:grant-type:jwt-bearer': 3600
-
-	    Any key not found when accessing the dict will receive the
-	    default value of BearerToken.DEFAULT_EXPIRES_IN currently set
-	    to 3600.
-
-	    An AuthClient may override any of the settings below.
+class MyOpenIDCode(OpenIDCode):
+	'''this attaches 'id_token' to the returned json of a token grant. to
+       activate, the authorization request must include 'openid' in
+       the list of scopes
 
 	'''
+	def get_jwt_config(self, grant):
+		'''
+		grant = AuthorizationCodeGrant instance
+		'''
+		jwt_signing_key = grant.server.get_jwt_signing_key()
+		client = grant.client
+		# exp = grant.server.generate_token._get_expires_in(
+		# 	client,
+		# 	grant.request.grant_type
+		# )
+		exp = client.get_token_policy(
+			['OAUTH2_TOKEN_EXPIRES_IN', grant.request.grant_type]
+		)
+		
+		config = {
+			'alg': jwt_signing_key['alg'],
+			'key': jwt_signing_key['k'],
+			'iss': G.TOKEN_ISSUER,
+			'exp': exp
+		}
+		log.debug("OPENID: grant=%s jwt_config=%s" % (grant, config))
+		return config
 
-	OAUTH2_TOKEN_EXPIRES_IN = {
-		# 'authorization_code': 60 * 60,   # access_token lifetime 1 hour
-		'authorization_code': 60 * 2,   # access_token lifetime 1 hour
-		# 'urn:ietf:params:oauth:grant-type:jwt-bearer': 3600,
-	}	
-	OAUTH2_ACCESS_TOKEN_GENERATOR=True
-	OAUTH2_REFRESH_TOKEN_GENERATOR=False
-	OAUTH2_ACCESS_TOKEN_LENGTH=42
-	OAUTH2_REFRESH_TOKEN_LENGTH=48
+	def exists_nonce(self, nonce, request):
+		return False
 
-	def __init__(self, app):
+	def generate_user_info(self, user, scope):
+		user_info = UserInfo(
+			sub=user['user_id'],
+			name=user['cn'][0],
+			email=user['mail'][0]
+		)
+		#if 'mailbox' in scope:
+		#	user_info['email'] = user['mail'][0]
+		log.debug("OPENID: user_info=%s" % user_info)
+		return user_info
+	
+
+
+class MyAuthorizationServer(AuthorizationServer):
+
+	def __init__(self, app, jwt_signing_key_path):
 		super(MyAuthorizationServer, self).__init__(
 			app=app,
 			query_client=G.storage.query_client,
 			save_token=save_token)
 
+		self.jwt_signing_key_path = jwt_signing_key_path
+				
 		# supported grants
-		self.register_grant(MyAuthorizationCodeGrant, [CodeChallenge(required=True)])
+		self.register_grant(MyAuthorizationCodeGrant, [CodeChallenge(required=True), MyOpenIDCode()])
 		self.register_grant(MyRefreshTokenGrant)
 	
 		# support revocation
@@ -207,6 +230,13 @@ class MyAuthorizationServer(AuthorizationServer):
 		# support introspection
 		self.register_endpoint(MyIntrospectionEndpoint)
 
+
+	def get_jwt_signing_key(self):
+		with open(self.jwt_signing_key_path) as f:
+			jwt_signing_key = json.loads(f.read())
+			jwt_signing_key['k'] = \
+				urlsafe_b64decode(to_bytes(jwt_signing_key['k']))
+			return jwt_signing_key
 		
 	
 	def create_token_expires_in_generator(self, config):
@@ -215,14 +245,8 @@ class MyAuthorizationServer(AuthorizationServer):
 		   `app.config`.
 
 		'''
-		data={}
-		data.update(BearerToken.GRANT_TYPES_EXPIRES_IN)
-		data.update(self.OAUTH2_TOKEN_EXPIRES_IN)
 		def expires_in(client, grant_type):
-			return client.get_token_policy(
-				['OAUTH2_TOKEN_EXPIRES_IN', grant_type],
-				data.get(grant_type, BearerToken.DEFAULT_EXPIRES_IN)
-			)
+			return client.get_token_policy(['OAUTH2_TOKEN_EXPIRES_IN', grant_type])
 		return expires_in
 
 	
@@ -231,39 +255,56 @@ class MyAuthorizationServer(AuthorizationServer):
 		    `config` which is `app.config`
 
 		'''
-		defaults = {
-			'OAUTH2_ACCESS_TOKEN_GENERATOR': self.OAUTH2_ACCESS_TOKEN_GENERATOR,
-			'OAUTH2_REFRESH_TOKEN_GENERATOR': self.OAUTH2_REFRESH_TOKEN_GENERATOR,
-			'OAUTH2_ACCESS_TOKEN_LENGTH': self.OAUTH2_ACCESS_TOKEN_LENGTH,
-			'OAUTH2_REFRESH_TOKEN_LENGTH': self.OAUTH2_REFRESH_TOKEN_LENGTH
-		}
-			
+		expires_in_fn = self.create_token_expires_in_generator(config)
+		
 		def access_token_generator(client, grant_type, user, scope):
-			generate = client.get_token_policy(
-				'OAUTH2_ACCESS_TOKEN_GENERATOR',
-				defaults['OAUTH2_ACCESS_TOKEN_GENERATOR']
-			)
-			length = client.get_token_policy(
-				'OAUTH2_ACCESS_TOKEN_LENGTH',
-				defaults['OAUTH2_ACCESS_TOKEN_LENGTH']
-			)
-			if generate is True:
+			generate = client.get_token_policy('OAUTH2_ACCESS_TOKEN_GENERATOR')
+			if not generate:
+				return None
+
+			jwt_tokens = client.get_token_policy('OAUTH2_JWT_TOKENS')
+			
+			if not jwt_tokens:
+				length = client.get_token_policy('OAUTH2_ACCESS_TOKEN_LENGTH')
 				return generate_token(length)
 
+			else:
+				jwt_signing_key = self.get_jwt_signing_key()
+				
+				# see: https://docs.authlib.org/en/latest/specs/rfc7519.html
+				header = {
+					'typ': 'JWT',
+					'alg': jwt_signing_key['alg'],
+					'kid': jwt_signing_key['kid'],
+				}
+				iat = int(time.time()) # issued-at
+				claims = client.jwt_private_claims(client, grant_type, user, scope)
+				claims.update({
+					'iss': G.TOKEN_ISSUER,
+					'azp': client.get_client_id(),
+					'sub': user['user_id'],
+					'aud': client.get_allowed_scope(scope),
+					'iat': iat,
+					'exp': iat + expires_in_fn(client, grant_type)
+				})
+				key = jwt_signing_key['k']
+				signed_token = jose.jwt.encode(header, claims, key)
+				
+				log_opts = { 'client': client.client_id }
+				log.debug('generate jwt token: header=%s claims=%s signed=%s',
+						  header, claims, signed_token, log_opts)
+				
+				return signed_token.decode('utf-8')
+			
+
 		def refresh_token_generator(client, grant_type, user, scope):
-			generate = client.get_token_policy(
-				'OAUTH2_REFRESH_TOKEN_GENERATOR',
-				defaults['OAUTH2_REFRESH_TOKEN_GENERATOR']
-			)
-			length = client.get_token_policy(
-				'OAUTH2_REFRESH_TOKEN_LENGTH',
-				defaults['OAUTH2_REFRESH_TOKEN_LENGTH']
-			)
-			if generate is True:
+			generate = client.get_token_policy('OAUTH2_REFRESH_TOKEN_GENERATOR')
+			if generate:
+				length = client.get_token_policy('OAUTH2_REFRESH_TOKEN_LENGTH')
 				return generate_token(length)
 		
 		return BearerToken(
 			access_token_generator,
 			refresh_token_generator,
-			self.create_token_expires_in_generator(config)
+			expires_in_fn
 		)

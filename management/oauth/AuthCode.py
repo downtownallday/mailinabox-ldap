@@ -2,6 +2,7 @@
 
 import time
 from authlib.oauth2.rfc6749 import AuthorizationCodeMixin
+from authlib.common.security import generate_token
 
 
 class AuthCode(AuthorizationCodeMixin):
@@ -44,3 +45,14 @@ class AuthCode(AuthorizationCodeMixin):
 	def get_scope(self):
 		return self.scope
 
+	#
+	# OpenID Connect methods
+    #
+
+	def get_nonce(self):
+		#return generate_token()
+		return None
+
+	def get_auth_time(self):
+		# when end-user last authenticated
+		return None

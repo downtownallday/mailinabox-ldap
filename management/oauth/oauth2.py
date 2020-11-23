@@ -37,11 +37,11 @@ def authenticate_client(request, required=True):
 		raise InvalidClientError(status_code=401)
 	
 
-def create_auth_server(app, storage_inst):
-	init_server_globals(storage_inst)
+def create_auth_server(app, storage_inst, issuer, jwt_signing_key):
+	init_server_globals(storage_inst, issuer)
 
 	# the authorization server instance
-	authorization = MyAuthorizationServer(app)
+	authorization = MyAuthorizationServer(app, jwt_signing_key)
 
 	# protect resources with @require_oauth("scope"), requiring a
 	# user supply a Bearer token that has access to the named scope

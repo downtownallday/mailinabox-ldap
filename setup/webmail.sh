@@ -159,6 +159,24 @@ cat > $RCM_CONFIG <<EOF;
     # 	'member_filter'   => '(|(objectClass=mailGroup)(objectClass=mailUser))',
     # )
 );
+
+/* ensure roudcube session id's aren't leaked to other parts of the server */
+\$config['session_path'] = '/mail/';
+
+/* configure OAuth2 */
+\$config['oauth_provider'] = 'miab-ldap';
+\$config['oauth_provider_name'] = 'Mail-in-a-Box LDAP';
+\$config['oauth_auth_uri'] = 'https://$PRIMARY_HOSTNAME/miab-ldap/oauth/authorize';
+\$config['oauth_auth_parameters'] = array();
+\$config['oauth_token_uri'] = 'http://localhost:10222/oauth/token';
+\$config['oauth_scope'] = 'mailbox introspect openid';
+\$config['oauth_client_id'] ='roundcube';
+\$config['oauth_client_secret'] = '$(generate_password 32)';
+\$config['oauth_identity_uri'] = 'http://localhost:10222/oauth/v1/introspect';
+\$config['oauth_identity_fields'] = array('username');
+\$config['oauth_verify_peer'] = true;
+\$config['oauth_login_redirect'] = false;
+
 ?>
 EOF
 

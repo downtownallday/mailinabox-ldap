@@ -28,3 +28,9 @@ rm -f preloaded-ubuntu-bionic64.box
 mv package.box preloaded-ubuntu-bionic64.box
 
 vagrant destroy -f
+
+if vagrant box list | awk '{print $1}' | grep -F 'preloaded-miabldap-ubuntu-bionic64' >/dev/null
+then
+    vagrant box remove "preloaded-miabldap-ubuntu-bionic64"
+fi
+

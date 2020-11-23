@@ -15,6 +15,9 @@ RCM_DIR=/usr/local/lib/roundcubemail
 # source files of the master branch
 master_zip_url="https://github.com/roundcube/roundcubemail/archive/master.zip"
 
+# git clone url
+master_git_url="https://github.com/roundcube/roundcubemail.git"
+
 
 install_composer() {
     # https://getcomposer.org/doc/faqs/how-to-install-composer-programmatically.md
@@ -37,22 +40,53 @@ install_composer() {
 }
 
 
-zip="/tmp/roundcube-master.zip"
-hide_output wget -O "$zip" "$master_zip_url"
+process_zip() {
+    zip="/tmp/roundcube-master.zip"
+    hide_output wget -O "$zip" "$master_zip_url"
 
-# set working directory to /usr/local/lib
-pushd $(dirname "$RCM_DIR") >/dev/null
+    # set working directory to /usr/local/lib
+    pushd $(dirname "$RCM_DIR") >/dev/null
 
-# rename active installation directory (/usr/local/lib/roundcubemail)
-# to roundcubemail-master so current installation is overwritten
-# during unzip
-mv $(basename "$RCM_DIR") roundcubemail-master
+    # rename active installation directory (/usr/local/lib/roundcubemail)
+    # to roundcubemail-master so current installation is overwritten
+    # during unzip
+    mv $(basename "$RCM_DIR") roundcubemail-master
 
-# unzip master sources, overwriting current installation
-unzip -q -o "$zip"
+    # unzip master sources, overwriting current installation
+    unzip -q -o "$zip"
 
-# rename back to expected installation directory
-mv roundcubemail-master $(basename "$RCM_DIR")
+    # rename back to expected installation directory
+    mv roundcubemail-master $(basename "$RCM_DIR")
+
+    # remove the temp file
+    rm -f "$zip"
+}
+
+
+
+process_git() {
+    # set working directory to /usr/local/lib
+    pushd $(dirname "$RCM_DIR") >/dev/null
+
+    # clone to roundcubemail-master
+    git clone "$master_git_url" "roundcubemail-master"
+
+    # checkout the desired branch/ref
+    cd "roundcubemail-master"
+    if [ ! -e "program/steps/login/oauth.inc" ]; then
+        git checkout `git rev-list -n 1 --before="2020-10-02 00:00" master`
+    fi
+    
+    # copy and overwrite existing installation
+    tar cf - . | (cd "$RCM_DIR"; tar xf -)
+
+    # remove clone
+    cd ..
+    rm -rf "roundcubemail-master"    
+}
+
+
+process_git
 
 # run composer to update dependencies
 cd "$RCM_DIR"
@@ -79,9 +113,6 @@ php composer.phar require "kolab/net_ldap3"
 
 # revert working directory
 popd >/dev/null
-
-# remove the temp file
-rm -f "$zip"
 
 # done
 echo "Roundcube sources from the master branch successfully installed"

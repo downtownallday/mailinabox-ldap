@@ -25,15 +25,14 @@ sed -i "s/#*\(\!include auth-sql.conf.ext\)/#\1/"  /etc/dovecot/conf.d/10-auth.c
 sed -i "s/#\(\!include auth-ldap.conf.ext\)/\1/"  /etc/dovecot/conf.d/10-auth.conf
 
 # oauth2 authentication
-if grep -F "!include auth-oauth2.conf.ext" /etc/dovecot/conf.d/10-auth.conf >/dev/null; then
-    sed -i "s/#\(\!include auth-oauth2.conf.ext\)/\1/"  /etc/dovecot/conf.d/10-auth.conf
-else
-    cat >>/etc/dovecot/conf.d/10-auth.conf <<EOF
-!include auth-oauth2.conf.ext
-EOF
+if ! grep -F "auth-oauth2.conf.ext" /etc/dovecot/conf.d/10-auth.conf >/dev/null
+then
+    # add missing oauth2 include (commented). place it before
+    # auth-ldap so JWT validation attempts are done first
+    sed -i 's/\(.*include auth-ldap.conf.ext.*\)/#!include auth-oauth2.conf.ext\n\1/' /etc/dovecot/conf.d/10-auth.conf
 fi
-    
-
+sed -i "s/#\(\!include auth-oauth2.conf.ext\)/\1/"  /etc/dovecot/conf.d/10-auth.conf
+  
 cat > /etc/dovecot/conf.d/auth-oauth2.conf.ext <<EOF
 passdb {
   driver = oauth2
@@ -42,15 +41,32 @@ passdb {
 }
 EOF
 
-cat > /etc/dovecot/dovecot-oauth2.conf.ext <<EOF
+if version_greater_equal "$(/usr/sbin/dovecot --version)" "2.3.11"
+then
+    # only dovecot version 2.3.11 and greater support JWT local validation
+    cat > /etc/dovecot/dovecot-oauth2.conf.ext <<EOF
+# "local" - attempt to locally validate and decode JWT tokens
+introspection_mode = local
+local_validation_key_dict = fs:posix:prefix=$STORAGE_ROOT/authorization_server/dovecot/
+
+# expected issuer(s) for the token (space separated list)
+issuers = $PRIMARY_HOSTNAME
+
+EOF
+else
+    cat > /etc/dovecot/dovecot-oauth2.conf.ext <<EOF
+# "auth" - use "Authorization: Bearer" header plus introspection
+introspection_mode = auth
+
+EOF
+fi
+    
+cat >> /etc/dovecot/dovecot-oauth2.conf.ext <<EOF
 # url for verifying token validity
 tokeninfo_url = http://dovecot:$(generate_password 32)@localhost:10222/oauth/v1/tokeninfo?access_token=
 
 # used to gather "extra fields and other information" - see rfc7662
 introspection_url = http://localhost:10222/oauth/v1/introspect
-
-# "auth" - use "Authorization: Bearer" header plus introspection
-introspection_mode = auth
 
 # Attribute name for checking whether account is disabled (optional)
 active_attribute = active
@@ -66,7 +82,6 @@ username_attribute = username
 
 # debugging
 debug = yes
-rawlog_dir = /tmp/dovecot-oauth2
 EOF
 
 

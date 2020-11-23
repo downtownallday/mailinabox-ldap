@@ -86,16 +86,18 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 
 
 	# instantiate client/user/token store
+	STORAGE_OAUTH_ROOT=os.path.join(env["STORAGE_ROOT"], "authorization_server")
 	storage = MyStorage(
 		env,
-		os.path.join(
-			env["STORAGE_ROOT"], "authorization_server", "authserver.sqlite")
+		os.path.join(STORAGE_OAUTH_ROOT, "authserver.sqlite")
 	)
 
-	# create oauth2 authorization server
+	# create oauth2 authorization server		
 	authorization, require_oauth = oauth2.create_auth_server(
 		app,
-		storage
+		storage,
+		env['PRIMARY_HOSTNAME'], # "issuer"
+		os.path.join(STORAGE_OAUTH_ROOT,"keys/jwt_signing_key.json")
 	)
 
 	# allow Authlib to issue tokens over HTTP since daemon.py is

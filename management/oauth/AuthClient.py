@@ -2,6 +2,7 @@
 
 import logging
 from authlib.oauth2.rfc6749 import ClientMixin
+from authlib.oauth2.rfc6750 import BearerToken
 
 log = logging.getLogger(__name__)
 
@@ -13,44 +14,77 @@ log = logging.getLogger(__name__)
 #
 
 class AuthClient(ClientMixin):
-	client_id = None
-	client_name = None
-	client_secret = None
-	supported_scopes = []
-	default_redirect_uri = "/"
-	authorization_code_lifetime_s = 4 * 60 * 60  # 4 hours
-	perms = [ ]
-	redirect_uri_prefix = None
-	token_policy = {
-		# Authlib keywords
-		'OAUTH2_TOKEN_EXPIRES_IN': {
-			# access_token lifetime per grant_type
-			# key=grant_type, value=seconds
-			'authorization_code': 60 * 60 * 24
-		},
-		'OAUTH2_ACCESS_TOKEN_GENERATOR': None,
-		'OAUTH2_REFRESH_TOKEN_GENERATOR': None,
-		
-		# Our additional keywords
-		'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
-			# refresh_token lifetime per grant_type
-			# key=grant_type, value=seconds
-			'authorization_code': (60 * 60 * 24) + (60 * 60 * 2),
-			'refresh_token': (60 * 60 * 24) + (60 * 60 * 2)
-		},
-		'OAUTH2_ACCESS_TOKEN_LENGTH': None,
-		'OAUTH2_REFRESH_TOKEN_LENGTH': None,
-	}
+	'''OAUTH2_TOKEN_EXPIRES_IN:
+
+	   default values are from authlib's BearerToken class found in
+	   authlib/oauth2/rfc6750/wrappers.py:
+
+	   They are:
+
+         authorization_code: 864000,
+         implicit: 3600,
+         password: 864000,
+         client_credentials: 864000
+
+	   Authlib code comments also refer to:
+
+		 'urn:ietf:params:oauth:grant-type:jwt-bearer': 3600
+
+	   Any key not found when accessing the dict will receive the
+	   default value of BearerToken.DEFAULT_EXPIRES_IN currently set
+	   to 3600.
+
+	   An AuthClient may override any of the settings below.
+
+	'''
+
 	
-	def __init__(self, id, name, secret, supported_scopes, redirect_uri_prefix, perms=None, token_policy=None):
+	def __init__(self, id, name, secret, supported_scopes, redirect_uri_prefix, perms=None, token_policy=None, jwt_private_claims_fn=None):
+
 		self.client_id = id
 		self.client_name = name
 		self.client_secret = secret
 		self.supported_scopes = supported_scopes
 		self.redirect_uri_prefix = redirect_uri_prefix
 		self.default_redirect_uri = redirect_uri_prefix
-		if perms: self.perms = perms
-		if token_policy: self.token_policy.update(token_policy)
+
+		self.perms = perms or []
+		self.token_policy = {
+			# Authlib keywords
+			'OAUTH2_TOKEN_EXPIRES_IN': {
+				# access_token lifetime per grant_type
+				# key=grant_type, value=seconds
+				'authorization_code': 60 * 60 * 24,
+				'urn:ietf:params:oauth:grant-type:jwt-bearer': 3600,
+			},
+			'OAUTH2_ACCESS_TOKEN_GENERATOR': True,
+			'OAUTH2_REFRESH_TOKEN_GENERATOR': False,
+			
+			# Our additional keywords
+			'OAUTH2_AUTHORIZATION_CODE_EXPIRES_IN': 1 * 60 * 60, # 1 hour
+			'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
+				# refresh_token lifetime per grant_type
+				# key=grant_type, value=seconds
+				'authorization_code': (60 * 60 * 24) + (60 * 60 * 2),
+				'refresh_token': (60 * 60 * 24) + (60 * 60 * 2)
+			},
+			'OAUTH2_ACCESS_TOKEN_LENGTH': 42,
+			'OAUTH2_REFRESH_TOKEN_LENGTH': 48,
+			'OAUTH2_JWT_TOKENS': False,
+		}
+		
+		if token_policy:
+			for key in token_policy:
+				if type(token_policy[key]) == dict:
+					self.token_policy[key].update(token_policy[key])
+				else:
+					self.token_policy[key] = token_policy[key]
+
+		def no_jwt_private_claims(client, grant_type, user, scope):
+			return {}
+		
+		self.jwt_private_claims=jwt_private_claims_fn or no_jwt_private_claims
+		
 		
 	def check_client_secret(self, pw):
 		if self.client_secret is None:
@@ -144,15 +178,23 @@ class AuthClient(ClientMixin):
 	def get_token_policy(self, name, default_value=None):
 		if type(name) is str:
 			name = [ name ]
+			
 		v = self.token_policy
 		for key in name:
 			v = v.get(key, None)
 			if v is None:
-				# log.debug(
-				# 	'policy %s: %s (default)' % (".".join(name), default_value),
-				# 	{ 'client': self.client_id }
-				# )
-				return default_value
+				if default_value is not None:
+					return default_value
+				
+				if len(name)==2 and name[0]=='OAUTH2_TOKEN_EXPIRES_IN':
+					return BearerToken.GRANT_TYPES_EXPIRES_IN.get(key, BearerToken.DEFAULT_EXPIRES_IN)
+
+				elif len(name)==2 and name[0]=='OAUTH2_REFRESH_TOKEN_EXPIRES_IN':
+					return BearerToken.GRANT_TYPES_EXPIRES_IN.get(key, BearerToken.DEFAULT_EXPIRES_IN) * 2
+					
+
+				raise ValueError("Unknown token policy %s" % name)
+				
 		# log.debug(
 		# 	'policy %s: %s (client)' % (".".join(name), v),
 		# 	{ 'client': self.client_id }

@@ -20,3 +20,5 @@ tools/editconf.py \
     log_path=/dev/stdout
 
 echo "DOVECOT debug logging to stdout turned on -- use interactive 'dovecot -F'"
+
+systemctl stop dovecot

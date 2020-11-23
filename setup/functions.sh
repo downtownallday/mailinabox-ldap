@@ -287,3 +287,10 @@ say_verbose() {
 say() {
 	echo "$@"
 }
+
+version_greater_equal()
+{
+	# eg: this is true:
+	#   version_greater_equal "9.0.1" "8.5"
+    printf '%s\n%s\n' "$2" "$1" | sort -V -C
+}

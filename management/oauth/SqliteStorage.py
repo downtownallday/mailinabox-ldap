@@ -122,7 +122,7 @@ class SqliteStorage(Storage):
 			"code_challenge": code_challenge,
 			"code_challenge_method": code_challenge_method,
 			"issued_at": issued_at,
-			"expires_in": client.authorization_code_lifetime_s
+			"expires_in": client.get_token_policy('OAUTH2_AUTHORIZATION_CODE_EXPIRES_IN')
 		}
 
 		active_until = auth_code["issued_at"] + auth_code["expires_in"]

@@ -19,7 +19,7 @@ tests/system-setup/vanilla.sh \
    --enable-mod=dovecot-debug \
    --enable-mod=roundcube-master \
    --enable-mod=roundcube-debug \
-   --enable-mod=roundcube-test-oauth
+   --enable-mod=dovecot-latest-2.3
 echo "EXITCODE: $?"
 SH
   end

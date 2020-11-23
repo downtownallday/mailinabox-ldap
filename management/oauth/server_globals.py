@@ -9,6 +9,7 @@ class my_globals_cls(object):
 
 G = my_globals_cls()
 
-def init_server_globals(storage_inst):
+def init_server_globals(storage_inst, issuer):
     G.storage = storage_inst
+    G.TOKEN_ISSUER = issuer
 
