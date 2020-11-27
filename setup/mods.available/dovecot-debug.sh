@@ -16,9 +16,16 @@ tools/editconf.py \
     auth_debug_passwords=yes \
     mail_debug=yes \
     verbose_ssl=no \
-    auth_verbose_passwords=plain \
-    log_path=/dev/stdout
+    auth_verbose_passwords=plain
+#    log_path=/dev/stdout
 
 echo "DOVECOT debug logging to stdout turned on -- use interactive 'dovecot -F'"
 
-systemctl stop dovecot
+#systemctl stop dovecot
+
+# enable core dumping to /var/crash
+systemctl enable apport.service
+systemctl start apport.service
+
+# dump suid procs
+sysctl -w fs.suid_dumpable=2
