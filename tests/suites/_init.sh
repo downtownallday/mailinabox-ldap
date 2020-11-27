@@ -2,6 +2,10 @@
 
 . lib/all.sh "lib"      || exit 1
 
+# python libraries available to suites
+export PYTHONPATH=$(realpath 'lib'):$PYTHONPATH
+export BROWSER_TESTS_VERBOSITY=2
+
 # globals - all global variables are UPPERCASE
 ASSETS_DIR="assets"
 BASE_OUTPUTDIR="$(realpath out)/$(hostname | awk -F. '{print $1}')"
@@ -67,6 +71,7 @@ test_start() {
 	TEST_DESC="${1:-}"
 	TEST_NAME="$(printf "%03d" $TEST_NUM)"
 	TEST_OF="$OUTDIR/$TEST_NAME"
+	export BROWSER_TESTS_OUTPUT_PATH="${TEST_OF}_ui"
 	TEST_STATE=""
 	TEST_STATE_MSG=()
 	echo "TEST-START \"${TEST_DESC:-unnamed}\"" >$TEST_OF
@@ -123,6 +128,7 @@ test_end() {
 			;;
 	esac
 	TEST_OF=""
+	export -n BROWSER_TESTS_OUTPUT_PATH
 }
 
 test_success() {

@@ -96,6 +96,9 @@ if ! $dry_run; then
 
     # these are added by system-setup scripts and needed for test runner
     apt-get install -y -qq python3-dnspython jq
+    snap install chromium
+    pip3 install selenium --quiet --system
+    pip3 install pyotp --quiet --system
 
     # remove apache, which is what setup will do
     apt-get -y -qq purge apache2 apache2-\*

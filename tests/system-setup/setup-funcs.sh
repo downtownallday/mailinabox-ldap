@@ -127,17 +127,22 @@ init_miab_testing() {
     
     # python3-dnspython: is used by the python scripts in 'tests' and is
     #   not installed by setup
-    # also install 'jq' for json processing
+    # also jq for json processing
     wait_for_apt
-    apt-get install -y -qq python3-dnspython jq
+    apt-get install -y -qq python3-dnspython jq || rc=1
+
+    # browser-based tests
+    snap install chromium || rc=1
+    pip3 install selenium --quiet --system || rc=1
+    pip3 install pyotp --quiet --system || rc=1
     
     # copy in pre-built MiaB-LDAP ssl files
-    #   1. avoid the lengthy generation of DH params
     if ! mkdir -p $STORAGE_ROOT/ssl; then
         echo "Unable to create $STORAGE_ROOT/ssl ($?)"
         rc=1
     fi
     echo "Copy dhparams"
+    # avoid the lengthy generation of DH params
     if ! cp tests/assets/ssl/dh2048.pem $STORAGE_ROOT/ssl; then
         echo "Copy failed ($?)"
         rc=1
