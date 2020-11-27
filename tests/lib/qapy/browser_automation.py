@@ -277,7 +277,7 @@ class TestDriver(object):
 
     def execute_async_script(self, script, secs=5, *args):
         ''' Asynchronously Executes JavaScript in the current window/frame '''
-        self.set_script_timeout(secs)
+        self.driver.set_script_timeout(secs)
         self.driver.execute_async_script(script, *args)
 
     def close(self):
