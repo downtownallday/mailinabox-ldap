@@ -1,4 +1,3 @@
-
 # Mail-in-a-Box LDAP
 This is a version of [Mail-in-a-Box](https://mailinabox.email) with LDAP used as the user account database instead of sqlite.
 
