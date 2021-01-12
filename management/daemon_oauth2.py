@@ -6,7 +6,7 @@ import json
 from datetime import timedelta
 
 # setup our root logger - named so oauth/*.py files become children
-log = logging.getLogger('oauth')
+log = logging.getLogger(__name__)
 
 from flask import request, session, url_for, redirect, jsonify, send_from_directory
 from functools import wraps
@@ -22,7 +22,6 @@ from oauth.MiabClientsMixin import MiabClientsMixin
 from oauth.MiabUsersMixin import MiabUsersMixin
 import oauth.oauth2 as oauth2
 import oauth.scope_properties as scope_properties
-from oauth.logging import AuthLogFormatter, AuthLogFilter
 
 # miab integration
 from mailconfig import validate_login, set_mail_password
@@ -63,26 +62,11 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 			'SEND_FILE_MAX_AGE_DEFAULT': timedelta(minutes=30)
 		})
 		
-	# log to stdout in development mode
 	if app.debug:
-		log_level = logging.DEBUG
-		log_handler = logging.StreamHandler()
 		app.config.from_mapping({
 			'EXPLAIN_TEMPLATE_LOADING': True,
 			'SEND_FILE_MAX_AGE_DEFAULT': timedelta(seconds=10)
 		})
-
-	# log to syslog in production mode
-	else:
-		import utils
-		log_level = logging.INFO
-		log_handler = utils.create_syslog_handler()
-		
-	logging.basicConfig(level=log_level, handlers=[])
-	log_handler.setLevel(log_level)
-	log_handler.addFilter(AuthLogFilter(app.debug, lambda:session['user_id']))
-	log_handler.setFormatter(AuthLogFormatter())
-	log.addHandler(log_handler)
 
 
 	# instantiate client/user/token store
