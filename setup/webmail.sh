@@ -175,7 +175,7 @@ cat > $RCM_CONFIG <<EOF;
 \$config['oauth_identity_uri'] = 'http://localhost:10222/oauth/v1/introspect';
 \$config['oauth_identity_fields'] = array('username');
 \$config['oauth_verify_peer'] = true;
-\$config['oauth_login_redirect'] = false;
+\$config['oauth_login_redirect'] = true;
 
 ?>
 EOF
