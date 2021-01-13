@@ -46,8 +46,8 @@ const auth_page = {
         retrieve_state: function() {
             ++this.loading;
             Promise.all([
-                axios.get('me'),
-                axios.post('clientinfo', {
+                axios.get('oauth/me'),
+                axios.post('oauth/clientinfo', {
                     client_id: this.get_param('client_id', null),
                     scope: this.get_param('scope', '')
                 })

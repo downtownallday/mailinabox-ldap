@@ -7,16 +7,28 @@ import datetime
 import time
 import subprocess
 
-log = logging.getLogger(__name__)
-
-from flask import request, Response, session, redirect, jsonify, send_from_directory
+from flask import (
+	request,
+	Response,
+	redirect,
+	jsonify,
+	send_from_directory
+)
 from functools import wraps
 from reporting.capture.db.SqliteConnFactory import SqliteConnFactory
 import reporting.uidata as uidata
 
 from mailconfig import get_mail_users
 
-		
+
+log = logging.getLogger(__name__)
+reports_ui_dir = os.path.join(os.path.dirname(__file__), 'reporting/ui')
+
+def send_reports_ui_file(filename):
+	return send_from_directory(reports_ui_dir, filename)
+
+
+	
 def add_reports(app, env, authorized_personnel_only):
 	'''call this function to add reporting/sem endpoints
 
@@ -34,14 +46,9 @@ def add_reports(app, env, authorized_personnel_only):
 	sqlite_file = os.path.join(CAPTURE_STORAGE_ROOT, 'capture.sqlite')
 	db_conn_factory = SqliteConnFactory(sqlite_file)
 
-	# UI support
-	ui_dir = os.path.join(os.path.dirname(app.template_folder), 'reporting/ui')
-	def send_ui_file(filename):
-		return send_from_directory(ui_dir, filename)
-
 	@app.route("/reports/ui/<path:filename>", methods=['GET'])
-	def get_reporting_ui_file(filename):
-		return send_ui_file(filename)
+	def get_reports_ui_file(filename):
+		return send_reports_ui_file(filename)
 	
 	@app.route('/reports')
 	def reporting_redir():
@@ -49,7 +56,7 @@ def add_reports(app, env, authorized_personnel_only):
 
 	@app.route('/reports/', methods=['GET'])
 	def reporting_main():
-		return send_ui_file('index.html')
+		return send_reports_ui_file('index.html')
 
 
 	# Decorator to unwrap json payloads. It returns the json as a dict

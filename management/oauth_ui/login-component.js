@@ -2,8 +2,7 @@
  * authenticate users with the server
  *
  * To determine whether a user is already authenticated, in which case
- * no login is necessary, issue a "GET /oauth/me" or "GET /user/me" to
- * the server
+ * no login is necessary, issue a "GET /user/me" to the server
  *
  * props: 
  *   error_handler [optional] - instance of an 'error-msgs' component
@@ -16,7 +15,7 @@
  */
 
 Vue.component('login', function(resolve, reject) {
-    axios.get('ui/login-component.html').then((response) => { resolve({
+    axios.get('user/ui/login-component.html').then((response) => { resolve({
 
         components: {
             'error-msgs': Vue.component('error-msgs')
@@ -82,7 +81,7 @@ Vue.component('login', function(resolve, reject) {
                     }
                 }
                 
-                axios.post('login', {
+                axios.post('user/login', {
                     username: this.username,
                     password: this.password,
                     stay_signed_in: this.stay_signed_in

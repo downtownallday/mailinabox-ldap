@@ -53,6 +53,8 @@ class MiabClientsMixin(Storage):
 			['/usr/sbin/dovecot', '--version'],
 			encoding='utf-8'
 		)
+		idx = result.find(' ')
+		if idx>0: result = result[0:idx]
 		v = result.split('.')
 		major = int(v[0])
 		minor = int(v[1])

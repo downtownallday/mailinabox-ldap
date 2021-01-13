@@ -1,5 +1,5 @@
 Vue.component('error-msgs', function(resolve, reject) {
-    axios.get('ui/error-msgs-component.html').then((response) => { resolve({
+    axios.get('oauth/ui/error-msgs-component.html').then((response) => { resolve({
 
         template: response.data,
         

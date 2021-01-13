@@ -3,7 +3,8 @@ Vue.component('spinner', {
 });
 
 Vue.component('page-header', function(resolve, reject) {
-    axios.get('ui-common/page-header.html').then((response) => { resolve({
+    var ax = axios.create({ baseURL: '/admin/' });
+    ax.get('ui-common/page-header.html').then((response) => { resolve({
 
         props: {
             header_text: { type: String, required: true },

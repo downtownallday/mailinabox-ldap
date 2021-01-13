@@ -9,6 +9,7 @@
 
 import os, os.path, re, json, time
 import multiprocessing.pool, subprocess
+from datetime import timedelta
 
 from functools import wraps
 
@@ -698,17 +699,34 @@ def log_failed_login(request):
 
 # APP
 
+# initialize python logger
 from daemon_logger import add_python_logging
 add_python_logging(app)
 
+# /ui-common
 from daemon_ui_common import add_ui_common
 add_ui_common(app)
 
+# /reports
 from daemon_reports import add_reports
 add_reports(app, env, authorized_personnel_only)
 
+# Session support; endpoints: /user/login, /user/logout
+from daemon_sessions import add_sessions
+add_sessions(app, env, auth_service, log_failed_login)
+
+# /user/profile
+from daemon_user_profile import add_user_profile
+add_user_profile(app, env, auth_service, log_failed_login)
+
+# /oauth/
 from daemon_oauth2 import add_oauth2
 add_oauth2(app, env, auth_service, log_failed_login)
+
+# prevent the browser from caching files too long
+app.config.from_mapping({
+        'SEND_FILE_MAX_AGE_DEFAULT': timedelta(seconds=10) if app.debug else timedelta(minutes=30)
+})
 
 
 if __name__ == '__main__':

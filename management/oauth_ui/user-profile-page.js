@@ -70,7 +70,7 @@ const user_profile_page = {
             }
             
             // change password
-            axios.post('password', {
+            axios.post('user/password', {
                 old_password: this.old_password,
                 new_password: this.new_password
             }).then((response) => {
@@ -128,7 +128,7 @@ const user_profile_page = {
                     
 
             // disable all MFA
-            axios.post('mfa/disable', {
+            axios.post('user/mfa/disable', {
                 'mfa-id': null,
                 password: this.mfa_disable_password,
             }, {
@@ -164,7 +164,7 @@ const user_profile_page = {
             }
 
             // enable TOTP
-            axios.post('mfa/totp/enable', {
+            axios.post('user/mfa/totp/enable', {
                 secret: this.me.new_mfa.totp.secret,
                 token: this.totp_token,
                 label: this.totp_label
@@ -194,7 +194,7 @@ const user_profile_page = {
         retrieve_state: function() {
             ++this.loading;
             var promise =
-                axios.get('me', { params: { mfa_state:'y' }}).then(response => {
+                axios.get('user/me', { params: { mfa_state:'y' }}).then(response => {
                     this.me = new Me(response.data);
                 }).catch(error => {
                     if (! XhrErrorHandler.handle(error, this)) {
