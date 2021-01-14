@@ -194,14 +194,31 @@ class MyOpenIDCode(OpenIDCode):
 		log.debug("OPENID: grant=%s jwt_config=%s" % (grant, config))
 		return config
 
+	def get_audiences(self, request):
+		# overrides the base class
+		#
+		# this ends up in id_token as 'aud'. roundcube (pre-release)
+		# currently requires that it matches the roundcube client id
+		# 'roundcube' and cannot be an array (the base class returns
+		# an array, or we wouldn't need to override this).
+		#
+		# 'aud' in id_token is different than 'aud' in the jwt token
+		# itself which will be a list of scopes (as required by dovecot).
+		client = request.client
+		return client.get_client_id()
+
 	def exists_nonce(self, nonce, request):
 		return False
 
 	def generate_user_info(self, user, scope):
+		# roundcube gets the username from id_token (avoiding an
+		# introspection request). see roundcube config
+		# $config['oauth_identity_fields']
 		user_info = UserInfo(
 			sub=user['user_id'],
+			username=user['user_id'],
 			name=user['cn'][0],
-			email=user['mail'][0]
+			email=user['mail'][0],
 		)
 		#if 'mailbox' in scope:
 		#	user_info['email'] = user['mail'][0]

@@ -74,7 +74,7 @@ active_attribute = active
 # Expected value in active_attribute (empty = require present, but anything goes)
 active_value = true
 
-# space separated list of scopes of validity
+# space separated list of scopes of validity (checked against JWT 'aud' field)
 scope = mailbox
 
 # json response (tokeninfo or introspection) attribute for username

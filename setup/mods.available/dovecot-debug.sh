@@ -19,7 +19,7 @@ tools/editconf.py \
     auth_verbose_passwords=plain
 #    log_path=/dev/stdout
 
-echo "DOVECOT debug logging to stdout turned on -- use interactive 'dovecot -F'"
+echo "DOVECOT debug logging turned on -- see /var/log/mail.log"
 
 #systemctl stop dovecot
 

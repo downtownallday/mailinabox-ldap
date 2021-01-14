@@ -108,8 +108,10 @@ cat > $RCM_CONFIG <<EOF;
 \$config['log_dir'] = '/var/log/roundcubemail/';
 \$config['temp_dir'] = '/var/tmp/roundcubemail/';
 \$config['db_dsnw'] = 'sqlite:///$STORAGE_ROOT/mail/roundcube/roundcube.sqlite?mode=0640';
-\$config['default_host'] = 'ssl://localhost';
-\$config['default_port'] = 993;
+#\$config['default_host'] = 'ssl://localhost';
+#\$config['default_port'] = 993;
+\$config['default_host'] = 'localhost';
+\$config['default_port'] = 143;
 \$config['imap_conn_options'] = array(
   'ssl'         => array(
      'verify_peer'  => false,

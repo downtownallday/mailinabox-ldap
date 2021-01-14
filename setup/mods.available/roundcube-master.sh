@@ -73,9 +73,9 @@ process_git() {
 
     # checkout the desired branch/ref
     cd "roundcubemail-master"
-    if [ ! -e "program/steps/login/oauth.inc" ]; then
-        git checkout `git rev-list -n 1 --before="2020-10-02 00:00" master`
-    fi
+    # if [ ! -e "program/steps/login/oauth.inc" ]; then
+    #     git checkout `git rev-list -n 1 --before="2020-10-02 00:00" master`
+    # fi
     
     # copy and overwrite existing installation
     tar cf - . | (cd "$RCM_DIR"; tar xf -)
