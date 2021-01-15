@@ -1,15 +1,20 @@
 # -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 
 import os
+import stat
 import logging
 import json
 from datetime import timedelta
 from flask import (
 	request,
 	session,
+	sessions,
 	jsonify
 )
+import hashlib
 from functools import wraps
+
+from authlib.common.security import generate_token
 
 from daemon_ui_common import send_common_ui_file
 from mailconfig import (
@@ -80,6 +85,7 @@ def get_session_me(include_mfa_state=False):
 		me.update({
 			'user_id': user['user_id'],
 			'name': user['cn'][0],
+			'email': user['mail'][0],
 		})
 		if include_mfa_state:
 			# IMPORTANT: this should match what GET /mfa/status returns
@@ -93,7 +99,39 @@ def get_session_me(include_mfa_state=False):
 	return me
 		
 
-		
+
+class MySecureCookieSessionInterface(sessions.SecureCookieSessionInterface):
+	'''subclass the default secure cookie implementation to use a more
+	secure hashing algorithm and random salt
+
+	'''
+	_salt = None
+
+	def digest_method(self):
+		return hashlib.sha3_256()
+
+	@property
+	def salt(self):
+		# not sure what this is supposed to do. it doesn't behave like
+		# salt - changing it causes the session to become invalid. i
+		# suspect it's simply appended to secret_key but not kept with
+		# the session cookie.
+		#
+		# because of this, persist a salt value, forever
+		if not self._salt:
+			salt_file = '/var/lib/mailinabox/session_salt.txt'
+			if not os.path.exists(salt_file):
+				with open(salt_file, "w") as fp:
+					fp.write(generate_token(12))
+				os.chmod(salt_file, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP)
+
+			with open(salt_file, "r") as fp:
+				self._salt = fp.read().strip()
+			log.debug('SESSION SALT: %s', self._salt)
+		return self._salt
+
+
+
 def add_sessions(app, miabenv, auth_service, log_failed_login):
 	'''call this function to add Flask sessions, plus endpoints for login
 	and logout
@@ -109,7 +147,7 @@ def add_sessions(app, miabenv, auth_service, log_failed_login):
 
 	global env
 	env = miabenv
-	
+
 	if not app.secret_key:
 		# enable Flask sessions
 		app.config.from_mapping({
@@ -120,7 +158,9 @@ def add_sessions(app, miabenv, auth_service, log_failed_login):
 			'SESSION_REFRESH_EACH_REQUEST': True,
 			'SESSION_COOKIE_PATH': '/miab-ldap/',
 		})
-		
+		app.session_interface = MySecureCookieSessionInterface()
+		log.debug('sessions: digest=%s key=%s', app.session_interface.digest_method(), app.secret_key)
+	
 
 	@app.route("/user/login", methods=['POST'])
 	def session_user_login():
@@ -190,3 +230,9 @@ def add_sessions(app, miabenv, auth_service, log_failed_login):
 		logout_session_user()
 		return send_common_ui_file('logout.html')
 
+
+	def secret_updated():
+		app.secret_key = auth_service.key
+		log.debug('session secret update: key=%s', app.secret_key)
+	
+	return secret_updated

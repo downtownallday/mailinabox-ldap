@@ -85,7 +85,8 @@ def get_session_username():
 		return flask.request.user_email
 
 	# otherwise, this may be a user session login
-	return flask.session['user_id']
+	if flask.session:
+		return flask.session['user_id']
 	
 
 def add_python_logging(app):

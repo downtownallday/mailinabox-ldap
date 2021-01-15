@@ -713,7 +713,7 @@ add_reports(app, env, authorized_personnel_only)
 
 # Session support; endpoints: /user/login, /user/logout
 from daemon_sessions import add_sessions
-add_sessions(app, env, auth_service, log_failed_login)
+session_secret_updated = add_sessions(app, env, auth_service, log_failed_login)
 
 # /user/profile
 from daemon_user_profile import add_user_profile
@@ -745,6 +745,7 @@ if __name__ == '__main__':
 		hasher = hashlib.sha1()
 		hasher.update(api_key.encode("ascii"))
 		auth_service.key = hasher.hexdigest()
+		session_secret_updated()
 
 	if "APIKEY" in os.environ: auth_service.key = os.environ["APIKEY"]
 
