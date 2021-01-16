@@ -22,15 +22,15 @@ from daemon_sessions import (
 	get_session_me
 )
 
-from oauth.SqliteStorage import SqliteStorage
-from oauth.MiabClientsMixin import MiabClientsMixin
-from oauth.MiabUsersMixin import MiabUsersMixin
-import oauth.oauth2 as oauth2
-import oauth.scope_properties as scope_properties
+from oauth.server.SqliteStorage import SqliteStorage
+from oauth.server.MiabClientsMixin import MiabClientsMixin
+from oauth.server.MiabUsersMixin import MiabUsersMixin
+import oauth.server.oauth2 as oauth2
+import oauth.server.scope_properties as scope_properties
 
 
 log = logging.getLogger(__name__)
-oauth_ui_dir = os.path.join(os.path.dirname(__file__), 'oauth_ui')
+oauth_ui_dir = os.path.join(os.path.dirname(__file__), 'oauth/ui')
 
 
 def send_oauth_ui_file(filename):

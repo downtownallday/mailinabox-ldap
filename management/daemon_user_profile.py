@@ -24,7 +24,7 @@ import mfa, mfa_totp
 
 
 log = logging.getLogger(__name__)
-user_ui_dir = os.path.join(os.path.dirname(__file__), 'oauth_ui')
+user_ui_dir = os.path.join(os.path.dirname(__file__), 'oauth/ui')
 
 def send_user_ui_file(filename):
 	return send_from_directory(user_ui_dir, filename)
