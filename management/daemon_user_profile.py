@@ -6,15 +6,15 @@ import json
 from flask import (
 	request,
 	jsonify,
-	send_from_directory
 )
 from daemon_ui_common import (
 	send_common_ui_file
 )
 from daemon_sessions import (
-	get_session_user,
+	set_session_user,
 	get_session_me,
-	user_login_required
+	user_login_required,
+	send_user_ui_file,
 )
 from mailconfig import (
 	validate_login,
@@ -24,10 +24,6 @@ import mfa, mfa_totp
 
 
 log = logging.getLogger(__name__)
-user_ui_dir = os.path.join(os.path.dirname(__file__), 'oauth/ui')
-
-def send_user_ui_file(filename):
-	return send_from_directory(user_ui_dir, filename)
 
 
 
@@ -48,21 +44,18 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 
 	'''
 
-	@app.route("/user/ui/<path:filename>", methods=['GET'])
-	def user_ui_file(filename):
-		return send_user_ui_file(filename)
-
 	@app.route("/user/profile", methods=['GET'])
 	def user_profile():
 		return send_user_ui_file('user-profile-page.html')
 	
 	@app.route("/user/me", methods=['GET'])
 	def user_me():
+		''' public '''
 		mfa_state = ( request.args.get('mfa_state') == 'y' )
 		return jsonify( get_session_me( include_mfa_state=mfa_state ))
 			
 	@app.route('/user/password', methods=['POST'])
-	@user_login_required
+	@user_login_required()
 	def user_password(user):
 		try:
 			data = json.loads(request.data)
@@ -99,7 +92,12 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 					reason_key='new_password',
 					reason=result[0]
 				)
-			
+
+			# call set_session_user to update session variable
+			# 'api_key_hash', otherwise the session will be deemed
+			# invalid and the next request will require the user to
+			# re-login
+			set_session_user(email, None)
 			return jsonify(success=True)
 		
 		except ValueError as e:
@@ -111,7 +109,7 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 		
 
 	@app.route('/user/mfa/disable', methods=['POST'])
-	@user_login_required
+	@user_login_required()
 	def user_mfa_disable(user):
 		try:
 			data = json.loads(request.data)
@@ -152,6 +150,11 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 		# disable MFA
 		try:
 			mfa.disable_mfa(email, mfa_id, env)
+			# call set_session_user to update session variable
+			# 'api_key_hash', otherwise the session will be deemed
+			# invalid and the next request will require the user to
+			# re-login
+			set_session_user(email, None)
 		except Exception as e:
 			log.error("Unable to disable MFA: %s", e, exc_info=e)
 			return jsonify(
@@ -164,7 +167,7 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 
 
 	@app.route('/user/mfa/totp/enable', methods=['POST'])
-	@user_login_required
+	@user_login_required()
 	def user_mfa_totp_enable(user):
 		try:
 			data = json.loads(request.data)
@@ -178,6 +181,11 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 		try:
 			mfa_totp.validate_secret(secret)
 			mfa.enable_mfa(user['user_id'], "totp", secret, token, label, env)
+			# call set_session_user to update session variable
+			# 'api_key_hash', otherwise the session will be deemed
+			# invalid and the next request will require the user to
+			# re-login
+			set_session_user(user['user_id'], None)
 		except ValueError as e:
 			return jsonify(
 				success=False,

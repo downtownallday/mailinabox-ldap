@@ -707,7 +707,7 @@ add_python_logging(app)
 from daemon_ui_common import add_ui_common
 add_ui_common(app)
 
-# /reports
+# /reports ("activity")
 from daemon_reports import add_reports
 add_reports(app, env, authorized_personnel_only)
 
@@ -722,6 +722,14 @@ add_user_profile(app, env, auth_service, log_failed_login)
 # /oauth/
 from daemon_oauth2 import add_oauth2
 add_oauth2(app, env, auth_service, log_failed_login)
+
+# /admin/munin auth wrapper
+from daemon_fool import add_daemon_fool
+add_daemon_fool(app, env, auth_service, handlers={
+	'munin': munin,
+	'munin_cgi': munin_cgi,
+})
+
 
 # prevent the browser from caching files too long
 app.config.from_mapping({

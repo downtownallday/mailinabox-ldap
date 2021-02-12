@@ -11,9 +11,9 @@ d = TestDriver()
 def rcm_login(d, login, pw, totp_secret):
     '''login to roundcube via oauth'''
     d.start("Login to roudcube via oauth with user/pass/totp")
-    el = d.find_el('#rcmloginoauth')
-    el.click() \
-      .wait_for_el('input[type=password]')
+    el = d.find_el('#rcmloginoauth', throws=False)
+    if el: el.click()
+    d.wait_for_el('input[type=password]')
 
     d.start("Login %s", login)
     d.find_el('input[type=email]').send_text(login)
@@ -36,9 +36,9 @@ def rcm_login_via_grant_access(d):
 
     '''
     d.start('Login to roundcube via oauth (grant access only)')
-    el = d.find_el('#rcmloginoauth')
-    el = el.click() \
-           .wait_for_text('Grant Access', tag='button', exact=True)
+    el = d.find_el('#rcmloginoauth', throws=False)
+    if el: el.click()
+    el = d.wait_for_text('Grant Access', tag='button', exact=True)
 
     d.start('Click grant access')
     el = el.click()
@@ -86,7 +86,7 @@ try:
     #
     d.start("Opening roundcube")
     d.get("/mail/")
-    el = d.wait_for_el('#rcmloginoauth')
+    el = d.wait_for_el('#layout-content, input[type=password]')
 
     #
     # 1. first-time authorization: requires a login
@@ -123,9 +123,9 @@ try:
     
     secret = enable_totp(d)
     d.start("Logout user at authorization server")
-    d.find_el('a[href=logout]') \
+    d.find_el('a[href="user/logout"]') \
      .click() \
-     .wait_for_el('input[type=password]')
+     .wait_for_text('Goodbye')
 
     #d.close() # user-profile tab
     d.switch_to_window(handle)
@@ -133,7 +133,7 @@ try:
     # 4. re-open roundcube and login with user/pass/totp
     d.start("Open roundcube")
     d.get('/mail/') \
-     .wait_for_el('#rcmloginoauth')
+     .wait_for_el('#rcmloginoauth, input[type=password]')
 
     rcm_login(d, login, pw, secret)
     wait_for_inbox(d)

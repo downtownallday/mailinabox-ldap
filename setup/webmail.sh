@@ -168,7 +168,7 @@ cat > $RCM_CONFIG <<EOF;
 /* configure OAuth2 */
 \$config['oauth_provider'] = 'miab-ldap';
 \$config['oauth_provider_name'] = 'Mail-in-a-Box LDAP';
-\$config['oauth_auth_uri'] = 'https://$PRIMARY_HOSTNAME/miab-ldap/oauth/authorize';
+\$config['oauth_auth_uri'] = 'https://$PRIMARY_HOSTNAME/box/oauth/authorize';
 \$config['oauth_auth_parameters'] = array();
 \$config['oauth_token_uri'] = 'http://localhost:10222/oauth/token';
 \$config['oauth_scope'] = 'mailbox introspect openid';

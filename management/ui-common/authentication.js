@@ -1,5 +1,5 @@
 class Me {
-    /* construct with return value from GET /me */
+    /* construct with return value from GET (/admin/me | /oauth/me | /user/me ) */
     constructor(me) {
         Object.assign(this, me);
     }

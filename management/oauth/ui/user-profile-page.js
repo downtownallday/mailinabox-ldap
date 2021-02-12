@@ -38,11 +38,44 @@ const user_profile_page = {
         loading: 0,
     },
 
-    beforeMount: function() {        
-        this.retrieve_state();
+    updated: function() {        
+        if (this.me==null && this.loading==0) {
+            this.retrieve_state();
+        }
     },
         
     methods: {
+
+        logout: function() {
+            this.reset_form();
+            this.me = null;
+        },
+
+        login_success: function() {
+            this.retrieve_state();
+            this.reset_form();
+        },
+
+        reset_form: function() {
+            this.$refs.error_msgs.hide_errors();
+            
+            /* change password models */
+            this.old_password = '';
+            this.new_password = '';
+            this.old_password_error = '';
+            this.new_password_error = '';
+            this.change_password_error = '';
+            this.change_password_success = false;
+
+            /* enable mfa totp models */
+            this.totp_label = '';
+            this.totp_token = '';
+            this.mfa_error = '';
+
+            /* disable mfa models */
+            this.mfa_disable_password = '';
+            this.mfa_disable_totp_token = '';
+        },
 
         set_tab: function(name) {
             this.cur_tab = ( name == this.cur_tab ? '': name);
@@ -92,8 +125,14 @@ const user_profile_page = {
                     this.change_password_success = true;
                 }
             }).catch((error) => {
-                XhrErrorHandler.handle(error, this);
-                this.change_password_error = '' + error;
+                if (error instanceof AuthenticationError) {
+                    this.reset_form();
+                    this.$refs.error_msgs.set_error('' + error);
+                    this.retrieve_state();
+                }
+                else {
+                    this.change_password_error = '' + error;
+                }
             });
         },
 
@@ -147,8 +186,14 @@ const user_profile_page = {
                     }
                 }
             }).catch((error) => {
-                XhrErrorHandler.handle(error, this);
-                this.mfa_error = '' + error;
+                if (error instanceof AuthenticationError) {
+                    this.reset_form();
+                    this.$refs.error_msgs.set_error('' + error);
+                    this.retrieve_state();
+                }
+                else {
+                    this.mfa_error = '' + error;
+                }
             });
         },
 
@@ -179,9 +224,15 @@ const user_profile_page = {
                     this.mfa_error = response.data.reason;
                 }
             }).catch((error) => {
-                XhrErrorHandler.handle(error, this);
-                this.totp_token = '';
-                this.mfa_error = '' + error;
+                if (error instanceof AuthenticationError) {
+                    this.reset_form();
+                    this.$refs.error_msgs.set_error('' + error);
+                    this.retrieve_state();
+                }
+                else {
+                    this.mfa_error = '' + error;
+                    this.totp_token = '';
+                }
             })
         },
         
@@ -196,12 +247,10 @@ const user_profile_page = {
             var promise =
                 axios.get('user/me', { params: { mfa_state:'y' }}).then(response => {
                     this.me = new Me(response.data);
+                    
                 }).catch(error => {
-                    if (! XhrErrorHandler.handle(error, this)) {
-                        setTimeout(() => {
-                            this.$refs.error_msgs.set_error('' + error);
-                        }, 500);
-                    }
+                    this.$refs.error_msgs.set_error('' + error);
+                    
                 }).finally(() => {
                     --this.loading;
                 });

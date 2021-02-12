@@ -13,7 +13,7 @@ Vagrant.configure("2") do |config|
 cd /mailinabox
 source tests/vagrant/globals.sh || exit 1
 export PRIMARY_HOSTNAME=oauth2.local
-export FEATURE_MUNIN=false
+#export FEATURE_MUNIN=false
 export FEATURE_NEXTCLOUD=false
 tests/system-setup/vanilla.sh \
    --enable-mod=dovecot-debug \

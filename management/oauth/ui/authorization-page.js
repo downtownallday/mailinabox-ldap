@@ -55,11 +55,9 @@ const auth_page = {
                 this.me = new Me(values[0].data);
                 this.clientinfo = values[1].data;
             }).catch((error) => {
-                if (! XhrErrorHandler.handle(error, this)) {
-                    setTimeout(() => {
-                        this.$refs.error_msgs.set_error('' + error);
-                    }, 500);
-                }
+                setTimeout(() => {
+                    this.$refs.error_msgs.set_error('' + error);
+                }, 500);
             }).finally(() => {
                 --this.loading;
             });

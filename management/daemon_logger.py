@@ -72,7 +72,9 @@ class AuthLogFilter(logging.Filter):
 
 		if record.username == '-':
 			try:
-				record.username = self.get_session_username()
+				username = self.get_session_username()
+				if username is not None:
+					record.username = username
 			except (RuntimeError, KeyError):
 				# not in an HTTP request context or not logged in
 				pass
