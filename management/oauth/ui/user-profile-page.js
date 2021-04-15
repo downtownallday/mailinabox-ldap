@@ -1,15 +1,29 @@
 /*
  * user profiles
- */ 
+ */
+import { Me, init_authentication_interceptors } from "../../ui-common/authentication.js";
+import { AuthenticationError } from "../../ui-common/exceptions.js";
+import page_layout from "../../ui-common/page-layout.js";
+import page_header from "../../ui-common/page-header.js";
+import bi from "../../ui-common/bi-components.js";
+import error_msgs from "./error-msgs-component.js";
+import login from "./login-component.js";
 
-const user_profile_page = {
+
+/* setup */
+init_authentication_interceptors();
+
+
+/* create vue */
+export default new Vue({
     el: '#user_profile_page',
     
     components: {
-        'page-layout': Vue.component('page-layout'),
-        'bi': Vue.component('bi'),
-        'error-msgs': Vue.component('error-msgs'),
-        'login': Vue.component('login')
+        'page-layout': page_layout,
+        'page-header': page_header,
+        'bi': bi,
+        'error-msgs': error_msgs,
+        'login': login
     },
         
     data: {
@@ -258,5 +272,4 @@ const user_profile_page = {
         },
         
     }
-};
-
+});

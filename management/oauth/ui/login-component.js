@@ -14,7 +14,9 @@
  *    
  */
 
-Vue.component('login', function(resolve, reject) {
+import { Me } from "../../ui-common/authentication.js";
+
+export default Vue.component('login', function(resolve, reject) {
     axios.get('user/ui/login-component.html').then((response) => { resolve({
 
         components: {

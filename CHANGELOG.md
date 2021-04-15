@@ -1,15 +1,60 @@
 CHANGELOG
 =========
 
-In Development
---------------
+v0.53 (April 12, 2021)
+----------------------
 
-* Incoming emails with SPF/DKIM/DMARC failures now have a higher spam score, and these messages are more likely to appear in the junk folder, since they are often spam/phishing.
-* A new Download button in the control panel's External DNS page can be used to download the required DNS records in zonefile format.
+* Migrate to the ECDSAP256SHA256 DNSSEC algorithm. If a DS record is set for any of your domain names that have DNS hosted on your box, you will be prompted by status checks to update the DS record.
+
+v0.53 (April 12, 2021)
+----------------------
+
+Software updates:
+
+* Upgraded Roundcube to version 1.4.11 addressing a security issue, and its desktop notifications plugin.
+* Upgraded Z-Push (for Exchange/ActiveSync) to version 2.6.2.
+
+Control panel:
+
 * Backblaze B2 is now a supported backup protocol.
+* Fixed an issue in the daily mail reports.
+* Sort the Custom DNS by zone and qname, and add an option to go back to the old sort order (creation order).
+
+Mail:
+
+* Enable sending DMARC failure reports to senders that request them.
+
+Setup:
+
+* Fixed error when upgrading from Nextcloud 13.
+
+v0.52 (January 31, 2021)
+------------------------
+
+Software updates:
+
+* Upgraded Roundcube to version 1.4.10.
+* Upgraded Z-Push to 2.6.1.
+
+Mail:
+
+* Incoming emails with SPF/DKIM/DMARC failures now get a higher spam score, and these messages are more likely to appear in the junk folder, since they are often spam/phishing.
+* Fixed the MTA-STS policy file's line endings.
+
+Control panel:
+
+* A new Download button in the control panel's External DNS page can be used to download the required DNS records in zonefile format.
 * Fixed the problem when the control panel would report DNS entries as Not Set by increasing a bind query limit.
 * Fixed a control panel startup bug on some systems.
-* Fixed the MTA-STS policy file's line endings.
+* Improved an error message on a DNS lookup timeout.
+* A typo was fixed.
+
+DNS:
+
+* The TTL for NS records has been increased to 1 day to comply with some registrar requirements.
+
+System:
+
 * Nextcloud's photos, dashboard, and activity apps are disabled since we only support contacts and calendar.
 
 v0.51 (November 14, 2020)
@@ -24,7 +69,7 @@ Mail:
 
 * The MTA-STA max_age value was increased to the normal one week.
 
-Control Panel:
+Control panel:
 
 * Two-factor authentication can now be enabled for logins to the control panel. However, keep in mind that many online services (including domain name registrars, cloud server providers, and TLS certificate providers) may allow an attacker to take over your account or issue a fraudulent TLS certificate with only access to your email address, and this new two-factor authentication does not protect access to your inbox. It therefore remains very important that user accounts with administrative email addresses have strong passwords.
 * TLS certificate expiry dates are now shown in ISO8601 format for clarity.
@@ -50,7 +95,7 @@ TLS:
 
 * TLS certificates are now provisioned in groups by parent domain to limit easy domain enumeration and make provisioning more resilient to errors for particular domains.
 
-Control Panel:
+Control panel:
 
 * The control panel API is now fully documented at https://mailinabox.email/api-docs.html.
 * User passwords can now have spaces.

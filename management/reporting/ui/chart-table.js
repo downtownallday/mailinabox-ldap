@@ -1,8 +1,9 @@
-Vue.component('chart-table', {
+export default Vue.component('chart-table', {
     props: {
         items: Array,
         fields: Array,
-        caption: String
+        caption: String,
+        small: { type:Boolean, default:true }
     },
 
     /* <b-table-lite striped small :fields="fields_x" :items="items" caption-top><template #table-caption><span class="text-nowrap">{{caption}}</span></template></b-table>*/
@@ -19,10 +20,13 @@ Vue.component('chart-table', {
         var table = ce('b-table-lite', {
             props: {
                 'striped': true,
-                'small': true,
+                'small': this.small,
                 'fields': this.fields_x,
                 'items': this.items,
                 'caption-top': true
+            },
+            attrs: {
+                'thead-tr-class': 'h-1'
             },
             scopedSlots: scopedSlots
         });
@@ -35,7 +39,7 @@ Vue.component('chart-table', {
             if (this.items.length == 0) {
                 return [{
                     key: 'no data',
-                    thClass: 'text-nowrap'
+                    thClass: 'text-nowrap align-top'
                 }];
             }
             return this.fields;

@@ -1,4 +1,4 @@
-Vue.component('error-msgs', function(resolve, reject) {
+export default Vue.component('error-msgs', function(resolve, reject) {
     axios.get('oauth/ui/error-msgs-component.html').then((response) => { resolve({
 
         template: response.data,

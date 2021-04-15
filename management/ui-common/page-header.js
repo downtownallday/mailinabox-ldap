@@ -1,10 +1,9 @@
-Vue.component('spinner', {
+var spinner = Vue.component('spinner', {
     template: '<span class="spinner-border spinner-border-sm"></span>'
 });
 
-Vue.component('page-header', function(resolve, reject) {
-    var ax = axios.create({ baseURL: '/admin/' });
-    ax.get('ui-common/page-header.html').then((response) => { resolve({
+var header = Vue.component('page-header', function(resolve, reject) {
+    axios.get('ui-common/page-header.html').then((response) => { resolve({
 
         props: {
             header_text: { type: String, required: true },
@@ -18,3 +17,5 @@ Vue.component('page-header', function(resolve, reject) {
     });
 
 });
+
+export { spinner, header as default };

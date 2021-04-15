@@ -1,5 +1,8 @@
-class Me {
-    /* construct with return value from GET (/admin/me | /oauth/me | /user/me ) */
+import { AuthenticationError } from './exceptions.js';
+
+
+export class Me {
+    /* construct with return value from GET /me */
     constructor(me) {
         Object.assign(this, me);
     }
@@ -18,7 +21,7 @@ class Me {
  * axios interceptors for authentication
  */
 
-function init_axios_interceptors() {
+export function init_authentication_interceptors() {
 
     // requests: attach non-session based auth (admin panel)
     axios.interceptors.request.use(request => {
@@ -38,7 +41,8 @@ function init_axios_interceptors() {
     });
 
 
-    // reponses: redirect on authorization failure
+    // reponses: handle authorization failures by throwing exceptions
+    // users should catch AuthenticationError exceptions
     axios.interceptors.response.use(
         response => {
             if (response.data &&

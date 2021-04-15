@@ -3,7 +3,7 @@
  * see: https://icons.getbootstrap.com
  */
 
-Vue.component('bi', {
+export default Vue.component('bi', {
     props: {
         width: { default: '1em' },
         height: { default: '1em' },
