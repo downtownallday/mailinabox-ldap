@@ -6,8 +6,8 @@ import { Me, init_authentication_interceptors } from "../../ui-common/authentica
 import page_layout from "../../ui-common/page-layout.js";
 import page_header from "../../ui-common/page-header.js";
 import bi from "../../ui-common/bi-components.js";
-import error_msgs from "./error-msgs-component.js";
-import login from "./login-component.js";
+import error_msgs from "../../ui-common/error-msgs-component.js";
+import login from "../../ui-common/login-component.js";
 
 
 /* setup */

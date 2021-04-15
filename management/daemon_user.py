@@ -6,15 +6,17 @@ import json
 from flask import (
 	request,
 	jsonify,
+	send_from_directory,
 )
 from daemon_ui_common import (
 	send_common_ui_file
 )
 from daemon_sessions import (
+	user_login_required,
 	update_session,
 	get_session_me,
-	user_login_required,
-	send_user_ui_file,
+	logout_session_user,
+	set_session_user,
 )
 from mailconfig import (
 	validate_login,
@@ -26,10 +28,16 @@ import mfa, mfa_totp
 log = logging.getLogger(__name__)
 
 
+user_ui_dir = os.path.join(os.path.dirname(__file__), 'user/ui')
 
-def add_user_profile(app, env, auth_service, log_failed_login):
+def send_user_ui_file(filename):
+	return send_from_directory(user_ui_dir, filename)
+
+
+
+def add_user_endpoints(app, env, auth_service, log_failed_login):
 	'''
-	call this function to add endpoints to handle user profiles
+	call this function to add endpoints to handle users
 
 	requires:
         daemon_sessions (sesssion support)
@@ -43,6 +51,83 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 	      its counter for possibly blocking the remote
 
 	'''
+
+	@app.route("/user/ui/<path:filename>", methods=['GET'])
+	def user_ui_file(filename):
+		return send_user_ui_file(filename)
+
+	@app.route("/user/login", methods=["GET"])
+	def session_user_login_page():
+		return send_user_ui_file('login-page.html')
+
+	@app.route("/user/login", methods=['POST'])
+	def session_user_login():
+		try:
+			data = json.loads(request.data)
+			username = data['username']
+			password = data['password']
+			stay_signed_in = data.get('stay_signed_in', False)
+			
+		except (KeyError, json.decoder.JSONDecodeError) as e:
+			return ("Bad request", 400)
+
+		try:
+			privs = auth_service.check_user_auth(
+				username,
+				password,
+				request,
+				env)
+			
+		except ValueError as e:
+			if "missing-totp-token" in str(e):
+				# password is okay, so get the labels for each totp
+				# device configured
+				labels = []
+				try:
+					states = mfa.get_public_mfa_state(username, env)
+					labels = [ state["label"] for state in states ]
+				except ValueError as e2:
+					log.error(
+						'Error getting mfa state: %s', e2,
+						{ 'username': username },
+						exc_info=e2
+					)
+					
+				return jsonify(
+					status='missing-totp-token',
+					reason=str(e),
+					labels=labels
+				)
+			
+			else:
+				# Log the failed login
+				log_failed_login(request)
+				return jsonify(
+					status="invalid",
+					reason=str(e)
+				)
+			
+		except Exception as e:
+			# unexpected server error
+			log.error(
+				"Problem authenticating user: %s", e,
+				{ 'username': username },
+				exc_info=e)
+			return ("Authentication failed", 403)
+
+		set_session_user(username, stay_signed_in)
+		
+		return jsonify(
+			status="ok",
+			me=get_session_me()
+		)
+
+		
+	@app.route('/user/logout')
+	def user_logout():
+		logout_session_user()
+		return send_common_ui_file('logout.html')
+
 
 	@app.route("/user/profile", methods=['GET'])
 	def user_profile():

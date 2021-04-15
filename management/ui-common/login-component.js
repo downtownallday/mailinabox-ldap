@@ -14,10 +14,10 @@
  *    
  */
 
-import { Me } from "../../ui-common/authentication.js";
+import { Me } from "./authentication.js";
 
 export default Vue.component('login', function(resolve, reject) {
-    axios.get('user/ui/login-component.html').then((response) => { resolve({
+    axios.get('ui-common/login-component.html').then((response) => { resolve({
 
         components: {
             'error-msgs': Vue.component('error-msgs')

@@ -771,13 +771,13 @@ add_ui_common(app)
 from daemon_reports import add_reports
 add_reports(app, env, authorized_personnel_only)
 
-# Session support; endpoints: /user/login, /user/logout
+# Session support
 from daemon_sessions import add_sessions
 session_secret_updated = add_sessions(app, env, auth_service, log_failed_login)
 
-# /user/profile
-from daemon_user_profile import add_user_profile
-add_user_profile(app, env, auth_service, log_failed_login)
+# /user
+from daemon_user import add_user_endpoints
+add_user_endpoints(app, env, auth_service, log_failed_login)
 
 # /oauth/
 from daemon_oauth2 import add_oauth2
