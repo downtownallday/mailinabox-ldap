@@ -11,7 +11,7 @@ from daemon_ui_common import (
 	send_common_ui_file
 )
 from daemon_sessions import (
-	set_session_user,
+	update_session,
 	get_session_me,
 	user_login_required,
 	send_user_ui_file,
@@ -93,11 +93,11 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 					reason=result[0]
 				)
 
-			# call set_session_user to update session variable
+			# call update_session to update session variable
 			# 'api_key_hash', otherwise the session will be deemed
 			# invalid and the next request will require the user to
 			# re-login
-			set_session_user(email, None)
+			update_session()
 			return jsonify(success=True)
 		
 		except ValueError as e:
@@ -150,11 +150,11 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 		# disable MFA
 		try:
 			mfa.disable_mfa(email, mfa_id, env)
-			# call set_session_user to update session variable
+			# call update_session to update session variable
 			# 'api_key_hash', otherwise the session will be deemed
 			# invalid and the next request will require the user to
 			# re-login
-			set_session_user(email, None)
+			update_session()
 		except Exception as e:
 			log.error("Unable to disable MFA: %s", e, exc_info=e)
 			return jsonify(
@@ -181,11 +181,11 @@ def add_user_profile(app, env, auth_service, log_failed_login):
 		try:
 			mfa_totp.validate_secret(secret)
 			mfa.enable_mfa(user['user_id'], "totp", secret, token, label, env)
-			# call set_session_user to update session variable
+			# call update_session to update session variable
 			# 'api_key_hash', otherwise the session will be deemed
 			# invalid and the next request will require the user to
 			# re-login
-			set_session_user(user['user_id'], None)
+			update_session()
 		except ValueError as e:
 			return jsonify(
 				success=False,

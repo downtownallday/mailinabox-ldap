@@ -95,6 +95,13 @@ def set_session_user(user_id, stay_signed_in):
 	''' establish a server session for a user  '''
 	session.clear()
 	session['user_id'] = user_id
+	if stay_signed_in is not None:
+		session.permanent = stay_signed_in
+		log.info('login permanent=%s', stay_signed_in)
+	update_session()
+
+	
+def update_session():
 	# store a hash of the user api key in the session. don't store the
 	# api_key itself because the session cookie is not encrypted, only
 	# signed. it's sufficient to know if the api key changed and deem
@@ -102,11 +109,9 @@ def set_session_user(user_id, stay_signed_in):
 	# instance, if the user's password or MFA config was changed by an
 	# admin
 	#
-	api_key, api_key_hash = _get_api_key_hash(user_id)
+	api_key, api_key_hash = _get_api_key_hash(session['user_id'])
 	session['api_key_hash'] = api_key_hash
-	if stay_signed_in is not None:
-		session.permanent = stay_signed_in
-		log.info('login permanent=%s', stay_signed_in)
+	
 	
 def logout_session_user():
 	log.info('logout')
