@@ -1,13 +1,15 @@
 #!/bin/bash
 
-# Set up oauth JWT signing keys
+# Set up oauth shared secrets
+#   JWT signing keys
+#   client password
 #
 # Must be run after management.sh, because it depends on managment's
 # python3 isolated environment
 #
 # Signing keys may be regenerated/rotated at any time by running this
-# script. New keys do not require a restart of the management daemon
-# or dovecot
+# script. New keys require a restart of the management daemon but not
+# dovecot
 #
 
 source setup/functions.sh
@@ -16,6 +18,38 @@ source /etc/mailinabox.conf # load global vars
 PYTHON="/usr/local/lib/mailinabox/env/bin/python3"
 STORAGE_OAUTH_ROOT="$STORAGE_ROOT/authorization_server"
 
+#
+# generate the admin console's client password and configuration
+#
+# client_id: the name of the oauth client (name for the admin console)
+#
+# client_password: the password the client uses to authenticate with
+# the oauth server
+#
+# oauth_login_url: endpoint where the user can interactively obtain
+# authorization (login into the oauth server)
+#
+# oauth_token_url: endpoint where the management daemon can obtain the
+# user's access token from the oauth server
+#
+# authorize_url: the managment daemon endpoint that handles the
+# redirect after oauth server login
+#
+mkdir -p "$STORAGE_OAUTH_ROOT"
+client_config="$STORAGE_OAUTH_ROOT/client_config.json"
+if [ ! -e "$client_config" ]; then
+    cat > "$client_config" <<EOF
+{   
+   "client_id": "miabldap",
+   "client_password": "$(generate_password 32)",
+   "oauth_login_url": "https://${PRIMARY_HOSTNAME}/box/oauth/authorize",
+   "oauth_token_url": "http://localhost:10222/oauth/token",
+   "authorize_url": "https://${PRIMARY_HOSTNAME}/admin/oauth-authorization"
+}
+EOF
+    chmod 600 "$client_config"
+fi
+
 # even though dovecot documentation says it supports HS512, dovecot
 # core dumps when using it on dovecot 2.3.11
 #
@@ -23,7 +57,7 @@ STORAGE_OAUTH_ROOT="$STORAGE_ROOT/authorization_server"
 #
 # using HS384 doesn't seem to do anything (just a failed login). only
 # HS256 works
-bits=256
+bits=512
 
 # generate a RFC7515 JSON Web Key for signing JWTs. we choose the
 # "HS512" algorithm (HMAC using SHA-512) because HMAC's are small

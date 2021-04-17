@@ -110,7 +110,7 @@
             </li>
             <li><a href="#sync_guide" onclick="return show_panel(this);">Contacts/Calendar</a></li>
             <li><a href="#web" onclick="return show_panel(this);">Web</a></li>
-            <li><a href="/admin/reports/" onclick="return api_credentials[0]!=''">Activity</a></li>
+            <li><a href="/admin/reports/" onclick="if (!api_credentials[0]) return show_panel('login');">Activity</a></li>
           </ul>
           <ul class="nav navbar-nav navbar-right">
             <li><a href="#" onclick="do_logout(); return false;" style="color: white">Log out</a></li>
@@ -170,6 +170,11 @@
 
       <div id="panel_tls" class="admin_panel">
       {% include "ssl.html" %}
+      </div>
+
+      <div id="panel_access_denied" class="admin_panel">
+        <h3 class="text-danger">Access Denied</h3>
+        <p>You are not an administrator on this system</p>
       </div>
 
       <hr>
@@ -352,9 +357,12 @@ function api(url, method, data, callback, callback_error, headers) {
       // We don't store user credentials in a cookie to avoid the hassle of CSRF
       // attacks. The Authorization header only gets set in our AJAX calls triggered
       // by user actions.
+      if (api_credentials.length == 2)
       xhr.setRequestHeader(
         'Authorization',
         'Basic ' + base64encode(api_credentials[0] + ':' + api_credentials[1]));
+      else
+      xhr.setRequestHeader('Authorization', 'Bearer ' + api_credentials[1]);
     },
     success: callback,
     error: callback_error || default_error,
@@ -378,7 +386,6 @@ function do_logout() {
     localStorage.removeItem("miab-cp-credentials");
   if (typeof sessionStorage != 'undefined')
     sessionStorage.removeItem("miab-cp-credentials");
-  api('/../box/user/logout', 'GET');
   show_panel('login');
 }
 
@@ -400,15 +407,97 @@ function show_panel(panelid) {
   return false; // when called from onclick, cancel navigation
 }
 
+
+// OAUTH: capture oauth related cookies, then delete them before other
+// fetches are made by the browser
+var oauthinfo = {
+  user_id: null,
+  access_token: null,
+  expires: null,
+  is_admin: null,
+  type: 'Bearer',
+   _cookie_map: {
+      'auth-user':    { key:'user_id',      type:String },
+      'auth-token':   { key:'access_token', type:String },
+      'auth-expires': { key:'expires',      type:Number },
+      'auth-isadmin': { key:'is_admin',     type:Number }
+  },
+  valid: function() {
+     return this.user_id && this.access_token && this.expires > Date.now()/1000;
+  },
+  load_from_cookies: function() {
+    document.cookie.split('; ').forEach(item => {
+      Object.keys(this._cookie_map).forEach( name => {
+        if (item.startsWith(name + '='))
+            this[this._cookie_map[name].key] = 
+               this._cookie_map[name].type(item.split('=')[1]);
+      });
+    });
+  },
+  delete_all_cookies: function() {
+    document.cookie.split('; ').forEach(item => {
+      Object.keys(this._cookie_map).forEach( name => {
+        if (item.startsWith(name + '='))
+            document.cookie = name+'=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      });
+    })
+  }
+};
+oauthinfo.load_from_cookies();
+oauthinfo.delete_all_cookies()
+
+// OAUTH: check for valid oauth login redirection
+function handle_oauth_login() {
+
+  if (! oauthinfo.valid()) return 'none';
+
+  if (! oauthinfo.is_admin) {
+      delete oauthinfo;
+      return 'denied';
+  }
+
+  api_credentials = [ 
+     oauthinfo.user_id,
+     oauthinfo.access_token,
+     oauthinfo.type,
+     oauthinfo.expires
+  ]
+
+  delete oauthinfo;
+  
+  if (typeof localStorage != 'undefined') {
+     var panel = localStorage.getItem("miab-cp-lastpanel");
+     if (! panel || panel == 'login')
+        localStorage.setItem("miab-cp-lastpanel", "system_status")
+  }
+
+  // Remember the credentials.
+  if (typeof localStorage != 'undefined' && typeof sessionStorage != 'undefined') {
+     sessionStorage.setItem("miab-cp-credentials", api_credentials.join(":"));
+     localStorage.removeItem("miab-cp-credentials");
+  }
+
+  return 'valid';
+}
+
 $(function() {
+  var oauth = handle_oauth_login();
+  if (oauth == 'denied') {
+     do_logout();
+     show_panel('access_denied');
+     return;
+  }
+  else if (oauth == 'valid') {
+     // pass
+  }
   // Recall saved user credentials.
-  if (typeof sessionStorage != 'undefined' && sessionStorage.getItem("miab-cp-credentials"))
+  else if (typeof sessionStorage != 'undefined' && sessionStorage.getItem("miab-cp-credentials"))
     api_credentials = sessionStorage.getItem("miab-cp-credentials").split(":");
   else if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-credentials"))
     api_credentials = localStorage.getItem("miab-cp-credentials").split(":");
 
   // Recall what the user was last looking at.
-  if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel")) {
+  if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel") && api_credentials[0]) {
     show_panel(localStorage.getItem("miab-cp-lastpanel"));
   } else {
     show_panel('login');

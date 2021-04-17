@@ -69,8 +69,9 @@ export default new Vue({
                 this.me = new Me(values[0].data);
                 this.clientinfo = values[1].data;
             }).catch((error) => {
+                var msg = (error.response && error.response.data) || ''+error;
                 setTimeout(() => {
-                    this.$refs.error_msgs.set_error('' + error);
+                    this.$refs.error_msgs.set_error(msg);
                 }, 500);
             }).finally(() => {
                 --this.loading;

@@ -19,6 +19,13 @@ properties = {
 		'desc': 'Unrestricted access to your mail',
 		'hidden': False, # not hidden from end users
 		'danger': True
+	},
+
+	'miabldap-console': {
+		'id': 'miabldap-console',
+		'desc': 'Unrestricted rights to change the server configuration',
+		'hidden': False,
+		'danger': True
 	}
 }
 

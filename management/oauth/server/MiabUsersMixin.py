@@ -10,7 +10,12 @@ log = logging.getLogger(__name__)
 class MiabUsersMixin(Storage):
 
 	def query_user(self, user_id):
-		user = find_mail_user(self.env, user_id, attributes=['cn','mail','maildrop'])
+		user = find_mail_user(self.env, user_id, attributes=[
+			'cn',
+			'mail',
+			'maildrop',
+			'mailaccess'
+		])
 		if user:
 			user['user_id'] = user['maildrop'][0]
 			if user_id != user['user_id']:

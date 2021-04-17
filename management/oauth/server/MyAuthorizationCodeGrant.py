@@ -44,5 +44,5 @@ class MyAuthorizationCodeGrant(grants.AuthorizationCodeGrant):
 		G.storage.delete_authorization_code(authorization_code)
 
 	def authenticate_user(self, authorization_code):
+		''' authorization_code: an AuthCode object '''
 		return G.storage.query_user(authorization_code.user_id)
-

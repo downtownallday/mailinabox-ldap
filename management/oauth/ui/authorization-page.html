@@ -50,9 +50,12 @@
       <div v-if="me && clientinfo">
         
         <div class="border text-center">
-          <h3>
-            {{ clientinfo.client_name }} is requesting access to your account
+          <h3 class="border-bottom p-1">
+            {{ clientinfo.client_name }}
           </h3>
+          <h5 class="mt-3">
+            {{ clientinfo.client_name }} is requesting the following rights
+          </h5>
           <h5 :class="{'text-danger':scope.danger}" v-for="scope in clientinfo.scope_properties">
             <bi name="exclamation-diamond-fill" v-if="scope.danger"></bi>{{ scope.desc }}
           </h5>

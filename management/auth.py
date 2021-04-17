@@ -1,10 +1,16 @@
+# -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 import base64, os, os.path, hmac, json
+import logging
 
 from flask import make_response
 
 import utils
 from mailconfig import validate_login, get_mail_password, get_mail_user_privileges
 from mfa import get_hash_mfa_state, validate_auth_mfa
+from auth_oauth import decode_and_validate_jwt
+
+log = logging.getLogger(__name__)
+
 
 DEFAULT_KEY_PATH   = '/var/lib/mailinabox/api.key'
 DEFAULT_AUTH_REALM = 'Mail-in-a-Box Management Server'
@@ -40,45 +46,85 @@ class KeyAuthService:
 
 		with create_file_with_mode(self.key_path, 0o640) as key_file:
 			key_file.write(self.key + '\n')
-
-	def authenticate(self, request, env):
+				
+	def authenticate(self, request, env, oauth_config):
 		"""Test if the client key passed in HTTP Authorization header matches the service key
 		or if the or username/password passed in the header matches an administrator user.
 		Returns a tuple of the user's email address and list of user privileges (e.g.
 		('my@email', []) or ('my@email', ['admin']); raises a ValueError on login failure.
 		If the user used an API key, the user's email is returned as None."""
 
+		def parse_authorization_header(header):
+			if not header:
+				raise ValueError("No authorization header provided.")
+			if " " not in header:
+				raise ValueError("Authorization header invalid.")
+			scheme, value = header.split(maxsplit=1)
+			return {
+				'scheme': scheme,
+				'value': value
+			}
+
 		def decode(s):
 			return base64.b64decode(s.encode('ascii')).decode('ascii')
 
-		def parse_basic_auth(header):
-			if " " not in header:
-				return None, None
-			scheme, credentials = header.split(maxsplit=1)
-			if scheme != 'Basic':
-				return None, None
-
-			credentials = decode(credentials)
+		def parse_basic_auth(basic_auth_credentials):
+			credentials = decode(basic_auth_credentials)
 			if ":" not in credentials:
 				return None, None
 			username, password = credentials.split(':', maxsplit=1)
 			return username, password
 
-		header = request.headers.get('Authorization')
-		if not header:
-			raise ValueError("No authorization header provided.")
-
-		username, password = parse_basic_auth(header)
-
-		if username in (None, ""):
-			raise ValueError("Authorization header invalid.")
-		elif username == self.key:
-			# The user passed the master API key which grants administrative privs.
-			return (None, ["admin"])
+		header = parse_authorization_header(
+			request.headers.get('Authorization')
+		)
+		
+		result = {
+			'scheme': header['scheme']
+		}
+		
+		if header['scheme'] == 'Basic':
+			username, password = parse_basic_auth(header['value'])
+			if username in (None, ""):
+				raise ValueError("Authorization header invalid.")
+			elif username == self.key:
+				# The user passed the master API key which grants administrative privs.
+				result.update({
+					'user_id': None,
+					'privs': ["admin"]
+				})
+			
+			else:
+				# The user is trying to log in with a username and either a password
+				# (and possibly a MFA token) or a user-specific API key.
+				result.update({
+					'user_id': username,
+					'privs': self.check_user_auth(username, password, request, env)
+				})
+		
+		elif header['scheme'] == 'Bearer':
+			try:
+				claims = decode_and_validate_jwt(oauth_config, header['value'])
+				result.update({
+					'user_id': claims['sub'],
+					'privs': claims['privs'],
+					'bearer_token': header['value'],
+					'claims': claims,
+				})
+			except Exception as e:
+				log.warning(
+					'Could not verify jwt: %s', header['value'],
+					exc_info=e
+				)
+				raise ValueError("Bearer token validation failed.")
+			
 		else:
-			# The user is trying to log in with a username and either a password
-			# (and possibly a MFA token) or a user-specific API key.
-			return (username, self.check_user_auth(username, password, request, env))
+			raise ValueError("Unknown authorization scheme")	
+
+		log.debug("auth succeeded: %s", result, {
+			"username": result["user_id"]
+		})
+		return result
 
 	def check_user_auth(self, email, pw, request, env):
 		# Validate a user's login email address and password. If MFA is enabled,

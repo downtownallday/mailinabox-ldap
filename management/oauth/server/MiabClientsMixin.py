@@ -4,6 +4,8 @@ import logging
 import subprocess
 from urllib.parse import urlparse
 import subprocess
+import os
+import json
 
 from .Storage import Storage
 from .AuthClient import AuthClient
@@ -61,7 +63,14 @@ class MiabClientsMixin(Storage):
 		release = int(v[2])
 		log.debug('dovecot version is %s.%s.%s' % (major, minor, release))
 		return major, minor, release
-	
+
+	def get_console_client_info(self):
+		client_config = os.path.join(
+			self.env['STORAGE_ROOT'],
+			'authorization_server/client_config.json'
+		)
+		with open(client_config) as f:
+			return json.loads(f.read())
 	
 	def query_client(self, client_id):
 
@@ -128,7 +137,7 @@ class MiabClientsMixin(Storage):
 						'refresh_token': 60 * 15
 					},
 					'OAUTH2_REFRESH_TOKEN_GENERATOR': False,
-					'OAUTH2_JWT_TOKENS': jwt_tokens,
+					'OAUTH2_JWT_TOKENS': jwt_tokens
 				},
 
 				jwt_private_claims_fn = jwt_private_claims
@@ -150,6 +159,51 @@ class MiabClientsMixin(Storage):
 				[],      # scopes supported
 				None,                # expected redirect_uri prefix
 				perms=['introspect-any']  # special permissions
+			)
+
+		elif client_id == "miabldap":
+			client_config = self.get_console_client_info()
+			
+			#
+			# private claims function providing additional JWT claims
+			# required by the console
+			#
+			def jwt_private_claims(client, grant_type, user, scope):
+				return {
+					'privs': user['mailaccess']
+				}
+
+			# create the AuthClient instance
+			inst = AuthClient(
+				client_id,
+
+				# name
+				'Mail-in-a-Box Control Panel',
+
+				# client password
+				client_config['client_password'],
+
+				# scopes supported
+				[ 
+					'introspect',
+					'miabldap-console'
+				],
+
+				# valid redirect uri prefixes
+				[ 
+					client_config['authorize_url']
+				],
+
+				token_policy = {
+					'OAUTH2_TOKEN_EXPIRES_IN': {
+						# access_token lifetime per grant_type
+						'authorization_code': 7 * 60 * 60 * 24
+					},
+					'OAUTH2_REFRESH_TOKEN_GENERATOR': False,
+					'OAUTH2_JWT_TOKENS': True,
+				},
+
+				jwt_private_claims_fn = jwt_private_claims
 			)
 
 		if inst:

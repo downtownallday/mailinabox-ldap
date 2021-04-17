@@ -112,3 +112,5 @@ def add_python_logging(app):
 	log_handler.setFormatter(AuthLogFormatter())
 	log = logging.getLogger('')
 	log.addHandler(log_handler)
+
+	log.info('Flask version: %s', flask.__version__)

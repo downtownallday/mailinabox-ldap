@@ -27,15 +27,18 @@ export function init_authentication_interceptors() {
     axios.interceptors.request.use(request => {
         var api_credentials = null;
         // code from templates/index.html for "recall saved user
-        // credentials" (but, without the split(':'))
+        // credentials"
         if (typeof sessionStorage != 'undefined' && sessionStorage.getItem("miab-cp-credentials"))
-            api_credentials = sessionStorage.getItem("miab-cp-credentials");
+            api_credentials = sessionStorage.getItem("miab-cp-credentials").split(':');
         else if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-credentials"))
-            api_credentials = localStorage.getItem("miab-cp-credentials");
+            api_credentials = localStorage.getItem("miab-cp-credentials").split(':');
         // end
 
         if (api_credentials) {
-            request.headers.authorization = 'Basic ' + window.btoa(api_credentials);
+            if (api_credentials.length == 2)
+                request.headers.authorization = 'Basic ' + window.btoa(api_credentials[0] + ':' + api_credentials[1]);
+            else
+                request.headers.authorization = 'Bearer ' + api_credentials[1];
         }
         return request;
     });

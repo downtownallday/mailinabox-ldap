@@ -21,11 +21,45 @@ from mailconfig import get_mail_users, get_mail_users_ex, get_admins, add_mail_u
 from mailconfig import get_mail_user_privileges, add_remove_mail_user_privilege
 from mailconfig import get_mail_aliases, get_mail_aliases_ex, get_mail_domains, add_mail_alias, remove_mail_alias
 from mfa import get_public_mfa_state, enable_mfa, disable_mfa
-import mfa_totp
+import mfa_totp, auth_oauth
 
 env = utils.load_environment()
 
 auth_service = auth.KeyAuthService()
+
+oauth_config = {
+	# client config json: see setup/oauth.sh
+	'client': auth_oauth.get_client_config(env),
+	
+	# the key, algorithm and other info needed to verify the oauth
+	# server's signature on a jwt access token
+	'jwt_signature_key': auth_oauth.get_jwt_signature_verification_key(env),
+
+	# once a jwt's signature is verified, it's claims are also
+	# validated against the following list
+	#
+	# iss: expected issuer
+	# sub: exists (must be the user email address)
+	# aud: required scopes
+	# privs: private claim containing user's list of privileges
+	#
+	'jwt_claims_options': {
+		'iss': {
+			'essential': True,
+			'value': env['PRIMARY_HOSTNAME']
+		},
+		'sub': {
+			'essential': True
+		},
+		'aud': {
+			'essential': True,
+			'values': [ 'miabldap-console' ]
+		},
+		'privs': {
+			'essential': True
+		}
+	}
+}
 
 # We may deploy via a symbolic link, which confuses flask's template finding.
 me = __file__
@@ -55,7 +89,9 @@ def authorized_personnel_only(viewfunc):
 		privs = []
 
 		try:
-			email, privs = auth_service.authenticate(request, env)
+			auth_result = auth_service.authenticate(request, env, oauth_config)
+			email = auth_result['user_id']
+			privs = auth_result['privs']
 		except ValueError as e:
 			# Write a line in the log recording the failed login
 			log_failed_login(request)
@@ -133,13 +169,17 @@ def index():
 
 		backup_s3_hosts=backup_s3_hosts,
 		csr_country_codes=csr_country_codes,
+
+		oauth=oauth_config["client"],
 	)
 
 @app.route('/me')
 def me():
 	# Is the caller authorized?
 	try:
-		email, privs = auth_service.authenticate(request, env)
+		auth_result = auth_service.authenticate(request, env, oauth_config)
+		email = auth_result['user_id']
+		privs = auth_result['privs']
 	except ValueError as e:
 		if "missing-totp-token" in str(e):
 			return json_response({
@@ -161,7 +201,7 @@ def me():
 	}
 
 	# Is authorized as admin? Return an API key for future use.
-	if "admin" in privs:
+	if "admin" in privs and auth_result['scheme']=='Basic':
 		resp["api_key"] = auth_service.create_user_key(email, env)
 
 	# Return.
@@ -674,6 +714,58 @@ def postgrey_whitelist_handler():
 			return ("Postgrey reload failed", 500)
 
 		return "OK. Saved and Postgrey reloaded."
+
+@app.route('/oauth-authorization', methods=["GET"])
+def oauth_authorization():
+	try:
+		code = request.args['code']
+	except KeyError:
+		return ("Missing required parameter", 400)
+	
+	# obtain an access token from the oauth server
+	post = auth_oauth.obtain_access_token(code, oauth_config)
+	if post.status_code != 200:
+		if post.status_code == 400:
+			return (post.json()['error_description'], 400)
+		else:
+			return ("Error contacting oauth server ", 500)
+
+	# decode the token to get the user id and validate it
+	json = post.json()
+	try:
+		claims = auth_oauth.decode_and_validate_jwt(
+			oauth_config,
+			json['access_token']
+		)
+	except Exception as e:
+		app.logger.error(
+			'unable to decode fresh token',
+			{ 'client': oauth_config['client']['client_id'] },
+			exc_info=e,
+		)
+		return (str(e), 500)
+
+	response = make_response('/', 302)
+	response.headers['location'] = '/'
+
+	def setcookie(name, value):
+		# response.set_cookie(
+		# 	key=name,
+		# 	value=value,
+		# 	path="/admin",
+		# 	secure=True,
+		# 	httponly=False,
+		# 	max_age=30,
+		# 	samesite="Strict"
+		# )
+		response.headers.add('Set-Cookie', f'{name}={value}; secure; path=/admin; samesite=strict; max-age=30')
+
+	setcookie("auth-user", claims['sub'])
+	setcookie("auth-token", json['access_token'])
+	setcookie("auth-expires", claims['exp'])
+	setcookie("auth-isadmin", 1 if 'admin' in claims['privs'] else 0)
+	return response
+	
 
 # MUNIN
 

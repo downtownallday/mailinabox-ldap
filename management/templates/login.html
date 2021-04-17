@@ -47,7 +47,10 @@ sudo management/cli.py user make-admin me@{{hostname}}</pre>
 
 <p class="subtitle">Log in here for your Mail-in-a-Box control panel.</p>
 
-<div class="login">
+<div class="text-center">
+  <button class="btn btn-success" style="width:20em" onclick="oauth_login()">Login</button>
+</div>
+<div class="login" style="display:none">
   <form id="loginForm" class="form-horizontal" role="form" onsubmit="do_login(); return false;" method="get">
     <div class="form-group">
       <label for="inputEmail3" class="col-sm-3 control-label">Email</label>
@@ -170,6 +173,14 @@ function do_login() {
   {
     'x-auth-token': $('#loginOtpInput').val()
   });
+}
+
+function oauth_login() {
+  window.location = '{{oauth["oauth_login_url"]}}?'+
+        'response_type=code&'+
+        'client_id={{oauth["client_id"]}}&'+
+        'scope=miabldap-console introspect&'+
+        'redirect_uri={{oauth["authorize_url"]}}';
 }
 
 function show_login() {
