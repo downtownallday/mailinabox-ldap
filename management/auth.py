@@ -75,9 +75,18 @@ class KeyAuthService:
 			username, password = credentials.split(':', maxsplit=1)
 			return username, password
 
-		header = parse_authorization_header(
-			request.headers.get('Authorization')
-		)
+		# credentials may come from the "Authorization" header or from
+		# the cookie "auth-bearer"
+		if request.headers.get('Authorization') is not None:
+			header = parse_authorization_header(
+				request.headers.get('Authorization')
+			)
+		elif 'auth-bearer' in request.cookies:
+			header = parse_authorization_header(
+				'Bearer ' + request.cookies['auth-bearer']
+			)
+		else:
+			raise ValueError("No authorization provided.")
 		
 		result = {
 			'scheme': header['scheme']

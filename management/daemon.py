@@ -715,6 +715,9 @@ def postgrey_whitelist_handler():
 
 		return "OK. Saved and Postgrey reloaded."
 
+
+### OAUTH
+
 @app.route('/oauth-authorization', methods=["GET"])
 def oauth_authorization():
 	try:
@@ -874,13 +877,6 @@ add_user_endpoints(app, env, auth_service, log_failed_login)
 # /oauth/
 from daemon_oauth2 import add_oauth2
 add_oauth2(app, env, auth_service, log_failed_login)
-
-# /admin/munin auth wrapper
-from daemon_fool import add_daemon_fool
-add_daemon_fool(app, env, auth_service, handlers={
-	'munin': munin,
-	'munin_cgi': munin_cgi,
-})
 
 
 # prevent the browser from caching files too long

@@ -93,7 +93,7 @@
                 <li class="dropdown-header">Advanced Pages</li>
                 <li><a href="#custom_dns" onclick="return show_panel(this);">Custom DNS</a></li>
                 <li><a href="#external_dns" onclick="return show_panel(this);">External DNS</a></li>
-                <li><a href="/admin/munin" target="_blank">Munin Monitoring</a></li>
+                <li><a href="/admin/munin" target="_blank" onclick="open_munin(this.href, this.target); return false;">Munin Monitoring</a></li>
                 <li><a href="#postgrey_whitelist" onclick="return show_panel(this);">Postgrey Whitelist</a></li>
               </ul>
             </li>
@@ -407,6 +407,14 @@ function show_panel(panelid) {
   return false; // when called from onclick, cancel navigation
 }
 
+function open_munin(url, target) {
+  if (api_credentials.length > 2) {
+      // use a cookie to pass the access token in munin requests, which will
+      // avoid an authentication popup
+      document.cookie = 'auth-bearer=' + api_credentials[1] + "; path=/admin/munin/; secure; samesite=strict";
+  }
+  window.open(url, target);
+}
 
 // OAUTH: capture oauth related cookies, then delete them before other
 // fetches are made by the browser
