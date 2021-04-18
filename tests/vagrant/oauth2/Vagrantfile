@@ -3,7 +3,7 @@ load '../funcs.rb'
 Vagrant.configure("2") do |config|
 
   config.vm.synced_folder "../../..", "/mailinabox", id: "mailinabox", automount: false
-  config.vm.network "public_network"
+  config.vm.network "public_network", bridge: "#$default_network_interface"
     
   # vanilla install plus extra debug output and other tests-of-the-day
 
