@@ -105,6 +105,9 @@ hide_output systemctl link -f /lib/systemd/system/mailinabox.service
 hide_output systemctl daemon-reload
 hide_output systemctl enable mailinabox.service
 
+# initialize oauth
+source setup/oauth.sh
+
 # Perform nightly tasks at 3am in system time: take a backup, run
 # status checks and email the administrator any changes.
 

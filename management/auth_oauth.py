@@ -75,14 +75,10 @@ def decode_and_validate_jwt(oauth_config, jwt):
 
 
 def get_client_config(env):
-	'''since we're on the same host as the oauth server, we can load the
-	 client password directly
-
+	''' retrieve the oauth config for the managment console
+	    returns: dict
 	'''
-	client_config = os.path.join(
-		env['STORAGE_ROOT'],
-		'authorization_server/client_config.json'
-	)
+	client_config = '/var/lib/mailinabox/console_oauth_config.json'
 	with open(client_config) as f:
 		return json.loads(f.read())
 

@@ -116,7 +116,6 @@ source setup/nextcloud.sh
 source setup/zpush.sh
 source setup/management.sh
 source setup/management-capture.sh
-source setup/oauth.sh
 source setup/munin.sh
 
 # Wait for the management daemon to start...

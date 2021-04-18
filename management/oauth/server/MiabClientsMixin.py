@@ -65,10 +65,7 @@ class MiabClientsMixin(Storage):
 		return major, minor, release
 
 	def get_console_client_info(self):
-		client_config = os.path.join(
-			self.env['STORAGE_ROOT'],
-			'authorization_server/client_config.json'
-		)
+		client_config = "/var/lib/mailinabox/console_oauth_config.json"
 		with open(client_config) as f:
 			return json.loads(f.read())
 	
