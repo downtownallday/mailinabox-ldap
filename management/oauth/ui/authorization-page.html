@@ -49,7 +49,7 @@
         -->
       <div v-if="me && clientinfo">
         
-        <div class="border text-center">
+        <div class="border text-center" v-cloak>
           <h3 class="border-bottom p-1">
             {{ clientinfo.client_name }}
           </h3>
@@ -81,7 +81,7 @@
             Only consent if you wish to allow such access
           </div>
           <div class="form-group mt-4 text-center">
-            <button class="btn btn-primary" @click.prevent="do_consent"> Grant Access </button>
+            <button class="btn btn-success" @click.prevent="do_consent"> Grant Access </button>
           </div>
           
         </form>
