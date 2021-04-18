@@ -49,8 +49,7 @@ export function init_authentication_interceptors() {
     axios.interceptors.response.use(
         response => {
             if (response.data &&
-                response.data.status === 'invalid' &&
-                response.config.headers.authorization)
+                response.data.status === 'invalid')
             {
                 var url = response.config.url;
                 if (response.config.baseURL) {
