@@ -49,6 +49,14 @@ class Token(TokenMixin):
 			
 		return d
 	
+	def short_access_token(self):
+		if self.access_token: return '...'+self.access_token[-5:]
+		return ''
+
+	def short_refresh_token(self):
+		if self.refresh_token: return '...'+self.refresh_token[-5:]
+		return ''
+
 	def stringify(self):
 		return json.dumps(self.to_dict())
 

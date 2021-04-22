@@ -168,7 +168,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 		if response.status_code == 401:
 			# client auth failed, log the attempt
 			log_failed_login(request)
-		else:
+		elif response.status_code != 200:
 			log.debug('returning token: %s', response.data, log_opt)
 		return response
 

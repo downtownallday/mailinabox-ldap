@@ -142,6 +142,8 @@ def save_token(token, request):
 		"token_type": token["token_type"]
 	}
 	
+	log_opt = { 'client': d['client_id'], 'username':d['user_id'] }
+
 	try:
 		if request.grant_type == 'authorization_code':
 			G.storage.save_token(None, Token(d))
@@ -156,17 +158,22 @@ def save_token(token, request):
 			)
 			raise InvalidGrantError()
 
-	except sqlite3.IntegrityError:
-		raise InvalidRequestError()
+	except sqlite3.IntegrityError as e:
+		# duplicate token
+		log.warning('unable to save token: %s', str(e), log_opt);
+		raise InvalidRequestError() from e
 
-	log_opt = { 'client': d['client_id'] }
+	except Exception as e:
+		log.error('unable to save token', log_opt, exc_info=e)
+		raise
+
 	token_types = [ key for key in ['access_token','refresh_token'] if d[key] ]
 	log.info(
-		'%s issued for grant_type=%s scope="%s" on-behalf-of="%s"',
+		'%s issued for grant_type=%s scope="%s" access_token="...%s"',
 		','.join(token_types),
 		request.grant_type,
 		d['scope'],
-		d['user_id'],
+		token.get('access_token','')[-5:],
 		log_opt
 	)
 
@@ -314,9 +321,12 @@ class MyAuthorizationServer(AuthorizationServer):
 				key = jwt_signing_key['k']
 				signed_token = jose.jwt.encode(header, claims, key)
 				
-				log_opts = { 'client': client.client_id }
-				log.debug('generate jwt token: header=%s claims=%s signed=%s',
-						  header, claims, signed_token, log_opts)
+				log_opts = { 
+					'client': client.client_id,
+					'username': user['user_id']
+				}
+				log.debug('generate jwt token: header=%s claims=%s signed=...%s',
+						  header, claims, signed_token[-5:], log_opts)
 				
 				return signed_token.decode('utf-8')
 			

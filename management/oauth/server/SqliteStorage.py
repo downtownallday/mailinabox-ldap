@@ -192,7 +192,10 @@ class SqliteStorage(Storage):
 	#
 
 	def save_token(self, old_token, token):
-		log_opts = { 'client': token.get_client_id() }
+		log_opts = { 
+			'client': token.get_client_id(),
+			'username': token.user_id
+		}
 		if old_token:
 			# old token must have a refresh_token
 			if not old_token.refresh_token:
@@ -224,7 +227,7 @@ class SqliteStorage(Storage):
 				json
 			))
 			conn.commit()
-			log.debug("SAVED: %s", json, log_opts)
+			log.debug("SAVED: access_token=%s, refresh_token=%s, expires_in=%s", token.short_access_token(), token.short_refresh_token(), token.expires_in, log_opts)
 			
 		finally:
 			if c: c.close(); c=None
@@ -257,7 +260,10 @@ class SqliteStorage(Storage):
 
 			rowcount = c.rowcount
 			if log.isEnabledFor(logging.DEBUG):
-				log_opts = { 'client': token.get_client_id() }
+				log_opts = { 
+					'client': token.get_client_id(), 
+					'username':token.user_id 
+				}
 				if rowcount == 0:
 					log.debug(
 						"revoke_token: no matching rows found for access_token==%s",
@@ -266,8 +272,9 @@ class SqliteStorage(Storage):
 					)
 				else:
 					log.debug(
-						'REVOKED: "%s"%s',
-						token.access_token,
+						'REVOKED: access_token="%s" refresh_token="%s"%s',
+						token.short_access_token(),
+						token.short_refresh_token(),
 						" (delayed by %ss)" % delay_s if delay_s > 0 else '',
 						log_opts
 					)

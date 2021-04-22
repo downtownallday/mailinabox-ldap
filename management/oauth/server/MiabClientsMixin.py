@@ -119,22 +119,21 @@ class MiabClientsMixin(Storage):
 				# valid redirect uri prefixes
 				[
 					'https://' + self.env['PRIMARY_HOSTNAME'] + '/mail/',
-					'https://' + self.env['PRIMARY_HOSTNAME'] + '/index.php/login/oauth'
 				],
 				
 				token_policy = {
 					'OAUTH2_TOKEN_EXPIRES_IN': {
 						# access_token lifetime per grant_type
 						#'authorization_code': 60 * 60 * 24
-						'authorization_code': 60 * 10,
-						'refresh_token': 60 * 10,
+						'authorization_code': 60 * (1 if self.debug else 15),
+						'refresh_token': 60 * (1 if self.debug else 15),
 					},
 					'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
 						# refresh_token lifetime per grant_type
-						'authorization_code': 60 * 15,
-						'refresh_token': 60 * 15
+						'authorization_code': 24 * 60 * 60,
+						'refresh_token': 25 * 60 * 60
 					},
-					'OAUTH2_REFRESH_TOKEN_GENERATOR': False,
+					'OAUTH2_REFRESH_TOKEN_GENERATOR': True,
 					'OAUTH2_JWT_TOKENS': jwt_tokens
 				},
 
