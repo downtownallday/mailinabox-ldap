@@ -81,7 +81,7 @@ test_fail2ban() {
 	
 	# reset fail2ban
 	record "[reset fail2ban]"
-	fail2ban-client unban --all >>$TEST_OF 2>&1 ||
+	/usr/bin/fail2ban-client unban --all >>$TEST_OF 2>&1 ||
 		test_failure "Unable to execute unban --all"
 
 	# create regular user with password "alice"
@@ -134,18 +134,31 @@ test_fail2ban() {
 	
 	# reset fail2ban
 	record "[reset fail2ban]"
-	fail2ban-client unban --all >>$TEST_OF 2>&1 ||
+	/usr/bin/fail2ban-client unban --all >>$TEST_OF 2>&1 ||
 		test_failure "Unable to execute unban --all"
 
 	# done
 	test_end
 }
 
+unset_pythonpath() {
+	x_PYTHONPATH="$PYTHONPATH"
+	unset PYTHONPATH
+}
+reset_pythonpath() {
+	export PYTHONPATH="$x_PYTHONPATH"
+	unset x_PYTHONPATH
+}
 
 suite_start "ldap-connection"
 
 tests
+
+# for whatever reason, fail2ban-client won't run with PYTHONPATH set:
+#  "Usage: tests/fail2ban.py "ssh user@hostname" hostname owncloud_user"
+unset_pythonpath
 test_fail2ban
+reset_pythonpath
 
 suite_end
 

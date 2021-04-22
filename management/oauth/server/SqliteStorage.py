@@ -199,6 +199,7 @@ class SqliteStorage(Storage):
 				raise ValueError("refresh_token required")
 
 			# carry forward the refresh_token if the new token has none
+			# TODO: remove carry-forward
 			if not token.refresh_token:
 				log.debug(
 					'carrying forward prior refresh token: %s',

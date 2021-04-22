@@ -7,7 +7,10 @@ from flask import make_response
 import utils
 from mailconfig import validate_login, get_mail_password, get_mail_user_privileges
 from mfa import get_hash_mfa_state, validate_auth_mfa
-from auth_oauth import decode_and_validate_jwt
+from auth_oauth import (
+	decode_and_validate_jwt,
+	ExpiredTokenError
+)
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +50,7 @@ class KeyAuthService:
 		with create_file_with_mode(self.key_path, 0o640) as key_file:
 			key_file.write(self.key + '\n')
 				
-	def authenticate(self, request, env, oauth_config):
+	def authenticate(self, request, env, oauth_config, leeway=0):
 		"""Test if the client key passed in HTTP Authorization header matches the service key
 		or if the or username/password passed in the header matches an administrator user.
 		Returns a tuple of the user's email address and list of user privileges (e.g.
@@ -113,7 +116,11 @@ class KeyAuthService:
 		
 		elif header['scheme'] == 'Bearer':
 			try:
-				claims = decode_and_validate_jwt(oauth_config, header['value'])
+				claims = decode_and_validate_jwt(
+					oauth_config,
+					header['value'],
+					leeway
+				)
 				result.update({
 					'user_id': claims['sub'],
 					'privs': claims['privs'],
@@ -122,10 +129,11 @@ class KeyAuthService:
 				})
 			except Exception as e:
 				log.warning(
-					'Could not verify jwt: %s', header['value'],
-					exc_info=e
+					'Could not verify jwt: %s: %s', 
+					str(e), 
+					header['value']
 				)
-				raise ValueError("Bearer token validation failed.")
+				raise ValueError("Bearer token validation failed.") from e
 			
 		else:
 			raise ValueError("Unknown authorization scheme")	

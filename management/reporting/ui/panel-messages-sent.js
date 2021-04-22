@@ -90,7 +90,7 @@ export default Vue.component('panel-messages-sent', function(resolve, reject) {
             
             getChartData: function() {
                 this.$emit('loading', 1);                
-                axios.post('reports/uidata/messages-sent', {
+                this.$root.api.post('reports/uidata/messages-sent', {
                     'start': this.date_range[0],
                     'end': this.date_range[1],
                     'binsize': this.binsize,

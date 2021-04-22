@@ -40,8 +40,9 @@ def send_oauth_ui_file(filename):
 # Our oauth Storage class for persisting and querying users, tokens,
 # clients, etc
 class MyStorage(SqliteStorage, MiabClientsMixin, MiabUsersMixin):
-	def __init__(self, env, db_path):
+	def __init__(self, env, db_path, debug=False):
 		self.env = env
+		self.debug = debug
 		super(MyStorage, self).__init__(db_path)
 
 
@@ -66,7 +67,8 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 	STORAGE_OAUTH_ROOT=os.path.join(env["STORAGE_ROOT"], "authorization_server")
 	storage = MyStorage(
 		env,
-		os.path.join(STORAGE_OAUTH_ROOT, "authserver.sqlite")
+		os.path.join(STORAGE_OAUTH_ROOT, "authserver.sqlite"),
+		app.debug
 	)
 
 	# create oauth2 authorization server		
@@ -174,10 +176,6 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 	@app.route("/oauth/revoke", methods=['POST'])
 	def revoke_token():
 		''' revoke tokens '''
-		log.debug(
-			"HANDLE revoke_token: POST data=%s", request.form,
-			{ 'client': request.form.get('client_id')}
-		)
 		response = authorization.create_endpoint_response(oauth2.MyRevocationEndpoint.ENDPOINT_NAME)
 		if response.status_code == 401:
 			# client auth failed, log the attempt

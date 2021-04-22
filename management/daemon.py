@@ -1,4 +1,5 @@
 #!/usr/local/lib/mailinabox/env/bin/python3
+# -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 #
 # During development, you can start the Mail-in-a-Box control panel
 # by running this script, e.g.:
@@ -80,62 +81,88 @@ app = Flask(__name__, template_folder=os.path.abspath(os.path.join(os.path.dirna
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
 # Decorator to protect views that require a user with 'admin' privileges.
-def authorized_personnel_only(viewfunc):
-	@wraps(viewfunc)
-	def newview(*args, **kwargs):
-		# Authenticate the passed credentials, which is either the API key or a username:password pair
-		# and an optional X-Auth-Token token.
-		error = None
-		privs = []
+def authorized_personnel_only_opt(leeway=0, scheme=None):
+	_leeway = leeway
+	_scheme = scheme
+	def _authorized_personnel_only(viewfunc):
+		@wraps(viewfunc)
+		def newview(*args, **kwargs):
+			# Authenticate the passed credentials, which is either the API key or a username:password pair
+			# and an optional X-Auth-Token token.
+			error = None
+			privs = []
 
-		try:
-			auth_result = auth_service.authenticate(request, env, oauth_config)
-			email = auth_result['user_id']
-			privs = auth_result['privs']
-		except ValueError as e:
-			# Write a line in the log recording the failed login
-			log_failed_login(request)
+			try:
+				auth_result = auth_service.authenticate(request, env, oauth_config, leeway=_leeway)
+				if _scheme and auth_result['scheme'] != _scheme:
+					raise ValueError(f'Only {_scheme} authentication accepted')
+				email = auth_result['user_id']
+				privs = auth_result['privs']
+			except ValueError as e:
+				if isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
+					# access token is expired
+					return Response(
+						json.dumps({
+							"status": "error",
+							"reason": str(e.__cause__)
+						})+"\n", 
+						status=401, 
+						mimetype='application/json', 
+						headers={ 
+							'WWW-Authenticate': f'Bearer realm={auth_service.auth_realm}' 
+						})
 
-			# Authentication failed.
-			error = str(e)
+				# Write a line in the log recording the failed login
+				log_failed_login(request)
 
-		# Authorized to access an API view?
-		if "admin" in privs:
-			# Store the email address of the logged in user so it can be accessed
-			# from the API methods that affect the calling user.
-			request.user_email = email
-			request.user_privs = privs
+				# Authentication failed.
+				error = str(e)
 
-			# Call view func.
-			return viewfunc(*args, **kwargs)
+			# Authorized to access an API view?
+			if "admin" in privs:
+				# Store the email address of the logged in user so it can be accessed
+				# from the API methods that affect the calling user.
+				request.user_email = email
+				request.user_privs = privs
 
-		if not error:
-			error = "You are not an administrator."
+				# Call view func.
+				return viewfunc(*args, **kwargs)
 
-		# Not authorized. Return a 401 (send auth) and a prompt to authorize by default.
-		status = 401
-		headers = {
-			'WWW-Authenticate': 'Basic realm="{0}"'.format(auth_service.auth_realm),
-			'X-Reason': error,
-		}
+			if not error:
+				error = "You are not an administrator."
 
-		if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-			# Don't issue a 401 to an AJAX request because the user will
-			# be prompted for credentials, which is not helpful.
-			status = 403
-			headers = None
+			# Not authorized. Return a 401 (send auth) and a prompt to authorize by default.
+			status = 401
+			headers = {
+				'WWW-Authenticate': 'Basic realm="{0}"'.format(auth_service.auth_realm),
+				'X-Reason': error,
+			}
 
-		if request.headers.get('Accept') in (None, "", "*/*"):
-			# Return plain text output.
-			return Response(error+"\n", status=status, mimetype='text/plain', headers=headers)
-		else:
-			# Return JSON output.
-			return Response(json.dumps({
-				"status": "error",
-				"reason": error,
-				})+"\n", status=status, mimetype='application/json', headers=headers)
+			if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+				# Don't issue a 401 to an AJAX request because the user will
+				# be prompted for credentials, which is not helpful.
+				status = 403
+				headers = None
 
-	return newview
+			if request.headers.get('Accept') in (None, "", "*/*"):
+				# Return plain text output.
+				return Response(error+"\n", status=status, mimetype='text/plain', headers=headers)
+			else:
+				# Return JSON output.
+				return Response(json.dumps({
+					"status": "error",
+					"reason": error,
+					})+"\n", status=status, mimetype='application/json', headers=headers)
+		return newview
+	return _authorized_personnel_only
+
+
+authorized_personnel_only = authorized_personnel_only_opt(
+	leeway=0,
+	scheme=None
+)
+
+
 
 @app.errorhandler(401)
 def unauthorized(error):
@@ -185,6 +212,11 @@ def me():
 			return json_response({
 				"status": "missing-totp-token",
 				"reason": str(e),
+			})
+		elif isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
+			return json_response({
+				"status": "token-expired",
+				"reason": str(e)
 			})
 		else:
 			# Log the failed login
@@ -722,59 +754,68 @@ def postgrey_whitelist_handler():
 def oauth_authorization():
 	try:
 		code = request.args['code']
+		state_str = request.args.get('state', '')
 	except KeyError:
 		return ("Missing required parameter", 400)
-	
-	# obtain an access token from the oauth server
-	post = auth_oauth.obtain_access_token(code, oauth_config)
-	if post.status_code != 200:
-		if post.status_code == 400:
-			return (post.json()['error_description'], 400)
+
+	state = {
+		'ssi': 0  # stay signed in
+	}
+	for str in state_str.split(";"):
+		x = str.split(":", maxsplit=1)
+		if len(x)!=2: continue
+		if x[0] == 'ssi':
+			state['ssi'] = 1 if x[1]=='1' else 0
 		else:
-			return ("Error contacting oauth server ", 500)
+			app.logger.warning('invalid authorization state: %s', str)
 
-	# decode the token to get the user id and validate it
-	json = post.json()
-	try:
-		claims = auth_oauth.decode_and_validate_jwt(
-			oauth_config,
-			json['access_token']
-		)
-	except Exception as e:
-		app.logger.error(
-			'unable to decode fresh token',
-			{ 'client': oauth_config['client']['client_id'] },
-			exc_info=e,
-		)
-		return (str(e), 500)
-
-	response = make_response('/', 302)
-	response.headers['location'] = '/'
-
-	def setcookie(name, value):
-		# response.set_cookie(
-		# 	key=name,
-		# 	value=value,
-		# 	path="/admin",
-		# 	secure=True,
-		# 	httponly=False,
-		# 	max_age=30,
-		# 	samesite="Strict"
-		# )
-		response.headers.add('Set-Cookie', f'{name}={value}; secure; path=/admin; samesite=strict; max-age=30')
-
-	setcookie("auth-user", claims['sub'])
-	setcookie("auth-token", json['access_token'])
-	setcookie("auth-expires", claims['exp'])
-	setcookie("auth-isadmin", 1 if 'admin' in claims['privs'] else 0)
+	response = auth_oauth.create_authorization_response(
+		oauth_config, 
+		code, 
+		state
+	)
 	return response
+
 	
+@app.route('/oauth-refresh', methods=["POST"])
+@authorized_personnel_only_opt(leeway=30 * 24 * 60 * 60, scheme='Bearer')
+def oauth_refresh():
+	# refresh an access token
+	try:
+		refresh_token = request.form.get('refresh_token')
+		if not refresh_token:
+			data = json.loads(request.data)
+			refresh_token = data['refresh_token']
+	except (KeyError, json.decoder.JSONDecodeError):
+		return ('Missing required parameter', 400)
+
+	response = auth_oauth.create_refresh_response(
+		oauth_config,
+		request,
+		refresh_token
+	)
+	return response
+
+
+@app.route('/oauth-revoke', methods=['POST'])
+@authorized_personnel_only
+def oauth_revoke():
+	try:
+		refresh_token = request.form['refresh_token']
+	except KeyError:
+		return ('Missing required parameter', 400)
+
+	response = auth_oauth.create_revoke_response(
+		oauth_config,
+		refresh_token
+	)
+	return response
 
 # MUNIN
 
 @app.route('/munin/')
 @app.route('/munin/<path:filename>')
-@authorized_personnel_only
+@authorized_personnel_only_opt(leeway=60 * 60)
 def munin(filename=""):
 	# Checks administrative access (@authorized_personnel_only) and then just proxies
 	# the request to static files.
@@ -782,7 +823,7 @@ def munin(filename=""):
 	return send_from_directory("/var/cache/munin/www", filename)
 
 @app.route('/munin/cgi-graph/<path:filename>')
-@authorized_personnel_only
+@authorized_personnel_only_opt(leeway=60 * 60)
 def munin_cgi(filename):
 	""" Relay munin cgi dynazoom requests
 	/usr/lib/munin/cgi/munin-cgi-graph is a perl cgi script in the munin package

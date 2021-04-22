@@ -12,9 +12,11 @@ from authlib.oauth2.rfc7636 import CodeChallenge
 from authlib.oauth2.rfc7009 import RevocationEndpoint
 from authlib.oauth2.rfc7662 import IntrospectionEndpoint
 from authlib.oauth2.rfc6750 import BearerToken
-
-from authlib.oauth2.rfc6749 import TokenEndpoint
-from authlib.oauth2.rfc6749 import InvalidGrantError
+from authlib.oauth2.rfc6749 import (
+	TokenEndpoint,
+	InvalidGrantError, 
+	InvalidRequestError
+)
 
 from authlib.oidc.core.grants import OpenIDCode
 from authlib.oidc.core import UserInfo
@@ -29,6 +31,7 @@ import logging
 import os
 import json
 import base64
+import sqlite3
 
 from .Token import Token
 from .MyAuthorizationCodeGrant import MyAuthorizationCodeGrant
@@ -139,18 +142,22 @@ def save_token(token, request):
 		"token_type": token["token_type"]
 	}
 	
-	if request.grant_type == 'authorization_code':
-		G.storage.save_token(None, Token(d))
+	try:
+		if request.grant_type == 'authorization_code':
+			G.storage.save_token(None, Token(d))
 
-	elif request.grant_type == 'refresh_token':
-		G.storage.save_token(request.credential, Token(d))
+		elif request.grant_type == 'refresh_token':
+				G.storage.save_token(request.credential, Token(d))
 
-	else:
-		log.info(
-			'unhandled grant type "%s"', request.grant_type,
-			{ 'client': request.client.client_id }
-		)
-		raise InvalidGrantError()
+		else:
+			log.info(
+				'unhandled grant type "%s"', request.grant_type,
+				{ 'client': request.client.client_id }
+			)
+			raise InvalidGrantError()
+
+	except sqlite3.IntegrityError:
+		raise InvalidRequestError()
 
 	log_opt = { 'client': d['client_id'] }
 	token_types = [ key for key in ['access_token','refresh_token'] if d[key] ]

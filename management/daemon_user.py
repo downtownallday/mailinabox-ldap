@@ -66,7 +66,7 @@ def add_user_endpoints(app, env, auth_service, log_failed_login):
 			data = json.loads(request.data)
 			username = data['username']
 			password = data['password']
-			stay_signed_in = data.get('stay_signed_in', False)
+			stay_signed_in = False
 			
 		except (KeyError, json.decoder.JSONDecodeError) as e:
 			return ("Bad request", 400)

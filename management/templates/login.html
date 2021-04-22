@@ -48,7 +48,12 @@ sudo management/cli.py user make-admin me@{{hostname}}</pre>
 <p class="subtitle">Log in here for your Mail-in-a-Box control panel.</p>
 
 <div class="text-center">
-  <button class="btn btn-success" style="width:20em" onclick="oauth_login()">Login</button>
+  <button class="btn btn-success" style="width:20em" onclick="oauth_login(document.getElementById('loginRemember').checked)">Login</button>
+  <div class="checkbox">
+    <label>
+      <input type="checkbox" id="loginRemember">Keep me signed in
+    </label>
+  </div>
 </div>
 <div class="login" style="display:none">
   <form id="loginForm" class="form-horizontal" role="form" onsubmit="do_login(); return false;" method="get">
@@ -175,12 +180,15 @@ function do_login() {
   });
 }
 
-function oauth_login() {
+function oauth_login(rememberMe) {
+  // ssi: "stay signed in"
+  var state = `ssi:${rememberMe ? 1 : 0}`;
   window.location = '{{oauth["oauth_login_url"]}}?'+
         'response_type=code&'+
         'client_id={{oauth["client_id"]}}&'+
         'scope=miabldap-console introspect&'+
-        'redirect_uri={{oauth["authorize_url"]}}';
+        'redirect_uri={{oauth["authorize_url"]}}&'+
+        `state=${state}`;
 }
 
 function show_login() {

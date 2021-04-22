@@ -91,8 +91,8 @@ export default Vue.component('panel-flagged-connections', function(resolve, reje
             },
             
             getChartData: function() {
-                this.$emit('loading', 1);                
-                axios.post('reports/uidata/flagged-connections', {
+                this.$emit('loading', 1);
+                this.$root.api.post('reports/uidata/flagged-connections', {
                     'start': this.date_range[0],
                     'end': this.date_range[1],
                     'binsize': this.binsize,

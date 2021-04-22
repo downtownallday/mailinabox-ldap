@@ -39,13 +39,15 @@ export default Vue.component('date-range-picker', {
         else if (this.recall_id) {
             const id = recall_id_prefix+this.recall_id;
             try {
-                var v = JSON.parse(localStorage.getItem(id));
-                range = v.range;
-                range_type = v.range_type;
+                var v = localStorage.getItem(id);
+                if (v) {
+                    v = JSON.parse(v);
+                    range = v.range;
+                    range_type = v.range_type;
+                }
             } catch(e) {
                 // pass
                 console.error(e);
-                console.log(localStorage.getItem(id));
             }
         }
 

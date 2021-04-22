@@ -132,10 +132,18 @@ def user_login_required(login_redirect=False, privs=None):
 					url = urllib.parse.urlparse(request.url)
 					return redirect('/user/login?redirect_to=' + url.path[1:])
 				else:
-					return ("login_required", 403)
+					response = jsonify(
+						status='error',
+						reason='Login required'
+					)
+					return (response, 403)
 			for priv in _privs:
 				if priv not in user['mailaccess']:
-					return ("insufficient_privilege", 403)
+					response = jsonify(
+						status='error', 
+						reason='Insufficient privilege'
+					)
+					return (response, 403)
 			return func(*args, user=user, **kwargs)
 		return wrapper
 	return decorator
@@ -236,8 +244,9 @@ def add_sessions(app, miabenv, miab_auth_service, log_failed_login):
 			'SESSION_COOKIE_NAME': 'miabsession',
 			'SESSION_COOKIE_SECURE': True,
 			'SESSION_COOKIE_SAMESITE': 'Strict',
+			'SESSION_COOKIE_HTTPONLY': True,
 			'SESSION_REFRESH_EACH_REQUEST': True,
-			'SESSION_COOKIE_PATH': '/box/',
+			'SESSION_COOKIE_PATH': '/auth/',
 		})
 		app.session_interface = MySecureCookieSessionInterface()
 		log.debug('sessions: digest=%s key=%s', app.session_interface.digest_method(), app.secret_key)

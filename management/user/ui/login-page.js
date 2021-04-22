@@ -2,7 +2,7 @@
  * login and consent page for OAuth2 authorization requests
  */ 
 
-import { Me, init_authentication_interceptors } from "../../ui-common/authentication.js";
+import { Me, init_oauth_api } from "../../ui-common/authentication.js";
 import page_layout from "../../ui-common/page-layout.js";
 import page_header from "../../ui-common/page-header.js";
 import bi from "../../ui-common/bi-components.js";
@@ -11,7 +11,7 @@ import login from "../../ui-common/login-component.js";
 
 
 /* setup */
-init_authentication_interceptors();
+const api = init_oauth_api(axios.create());
 
 
 /* create vue */
@@ -27,6 +27,9 @@ export default new Vue({
     },
         
     data: {
+        /* authenticated requests */
+        api: api,
+        
         /* login state from server */
         me: null,
         
@@ -56,7 +59,7 @@ export default new Vue({
         
         retrieve_state: function() {
             ++this.loading;
-            axios.get('user/me').then((response) => {
+            this.api.get('user/me').then((response) => {
                 this.me = new Me(response.data);
                 if (this.me.is_authenticated()) {
                     this.login_success();

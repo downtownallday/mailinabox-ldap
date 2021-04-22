@@ -166,10 +166,13 @@ cat > $RCM_CONFIG <<EOF;
 /* ensure roudcube session id's aren't leaked to other parts of the server */
 \$config['session_path'] = '/mail/';
 
+/* prevent CSRF, requires php 7.3+ */
+\$config['session_samesite'] = 'Strict';
+
 /* configure OAuth2 */
 \$config['oauth_provider'] = 'miab-ldap';
 \$config['oauth_provider_name'] = 'Mail-in-a-Box LDAP';
-\$config['oauth_auth_uri'] = 'https://$PRIMARY_HOSTNAME/box/oauth/authorize';
+\$config['oauth_auth_uri'] = 'https://$PRIMARY_HOSTNAME/auth/oauth/authorize';
 \$config['oauth_auth_parameters'] = array();
 \$config['oauth_token_uri'] = 'http://localhost:10222/oauth/token';
 \$config['oauth_scope'] = 'mailbox introspect openid';

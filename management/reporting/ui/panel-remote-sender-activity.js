@@ -126,7 +126,7 @@ export default Vue.component('panel-remote-sender-activity', function(resolve, r
             },
             
             change_sender: function() {
-                axios.post('/reports/uidata/select-list-suggestions', {
+                this.$root.api.post('/reports/uidata/select-list-suggestions', {
                     type: this.sender_type == 'email' ?
                         'envelope_from' : 'remote_host',
                     query: this.sender_type == 'email' ?
@@ -205,7 +205,7 @@ export default Vue.component('panel-remote-sender-activity', function(resolve, r
                 }
 
                 this.$emit('loading', 1);
-                axios.post('reports/uidata/remote-sender-activity', {
+                this.$root.api.post('reports/uidata/remote-sender-activity', {
                     row_limit: this.get_row_limit(),
                     sender: this[this.sender_type].trim(),
                     sender_type: this.sender_type,

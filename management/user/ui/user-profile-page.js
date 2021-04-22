@@ -1,7 +1,7 @@
 /*
  * user profiles
  */
-import { Me, init_authentication_interceptors } from "../../ui-common/authentication.js";
+import { Me, init_oauth_api } from "../../ui-common/authentication.js";
 import { AuthenticationError } from "../../ui-common/exceptions.js";
 import page_layout from "../../ui-common/page-layout.js";
 import page_header from "../../ui-common/page-header.js";
@@ -11,7 +11,7 @@ import login from "../../ui-common/login-component.js";
 
 
 /* setup */
-init_authentication_interceptors();
+const api = init_oauth_api(axios.create());
 
 
 /* create vue */
@@ -27,6 +27,9 @@ export default new Vue({
     },
         
     data: {
+        /* axios */
+        api: api,
+        
         /* state from server */
         me: null,
 
@@ -117,7 +120,7 @@ export default new Vue({
             }
             
             // change password
-            axios.post('user/password', {
+            this.api.post('user/password', {
                 old_password: this.old_password,
                 new_password: this.new_password
             }).then((response) => {
@@ -181,7 +184,7 @@ export default new Vue({
                     
 
             // disable all MFA
-            axios.post('user/mfa/disable', {
+            this.api.post('user/mfa/disable', {
                 'mfa-id': null,
                 password: this.mfa_disable_password,
             }, {
@@ -223,7 +226,7 @@ export default new Vue({
             }
 
             // enable TOTP
-            axios.post('user/mfa/totp/enable', {
+            this.api.post('user/mfa/totp/enable', {
                 secret: this.me.new_mfa.totp.secret,
                 token: this.totp_token,
                 label: this.totp_label
@@ -259,7 +262,7 @@ export default new Vue({
         retrieve_state: function() {
             ++this.loading;
             var promise =
-                axios.get('user/me', { params: { mfa_state:'y' }}).then(response => {
+                this.api.get('user/me', { params: { mfa_state:'y' }}).then(response => {
                     this.me = new Me(response.data);
                     
                 }).catch(error => {

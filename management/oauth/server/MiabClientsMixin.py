@@ -65,7 +65,7 @@ class MiabClientsMixin(Storage):
 		return major, minor, release
 
 	def get_console_client_info(self):
-		client_config = "/var/lib/mailinabox/console_oauth_config.json"
+		client_config = "/var/lib/mailinabox/mgmt_oauth_config.json"
 		with open(client_config) as f:
 			return json.loads(f.read())
 	
@@ -127,6 +127,7 @@ class MiabClientsMixin(Storage):
 						# access_token lifetime per grant_type
 						#'authorization_code': 60 * 60 * 24
 						'authorization_code': 60 * 10,
+						'refresh_token': 60 * 10,
 					},
 					'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
 						# refresh_token lifetime per grant_type
@@ -194,9 +195,15 @@ class MiabClientsMixin(Storage):
 				token_policy = {
 					'OAUTH2_TOKEN_EXPIRES_IN': {
 						# access_token lifetime per grant_type
-						'authorization_code': 7 * 60 * 60 * 24
+						'authorization_code': 60 * (1 if self.debug else 15),
+						'refresh_token': 60 * (1 if self.debug else 15)
 					},
-					'OAUTH2_REFRESH_TOKEN_GENERATOR': False,
+					'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
+						# refresh_token lifetime per grant_type
+						'authorization_code': 60 * 60 * 24 * 7,
+						'refresh_token': 60 * 60 * 24 * 7
+					},
+					'OAUTH2_REFRESH_TOKEN_GENERATOR': True,
 					'OAUTH2_JWT_TOKENS': True,
 				},
 

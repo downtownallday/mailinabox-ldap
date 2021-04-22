@@ -17,7 +17,7 @@ source /etc/mailinabox.conf # load global vars
 
 PYTHON="/usr/local/lib/mailinabox/env/bin/python3"
 STORAGE_OAUTH_ROOT="$STORAGE_ROOT/authorization_server"
-CLIENT_CONFIG="/var/lib/mailinabox/console_oauth_config.json"
+CLIENT_CONFIG="/var/lib/mailinabox/mgmt_oauth_config.json"
 
 hmac_bits=384
 
@@ -46,8 +46,9 @@ if [ ! -e "$CLIENT_CONFIG" ]; then
 {   
    "client_id": "miabldap",
    "client_password": "$(generate_password 32)",
-   "oauth_login_url": "https://${PRIMARY_HOSTNAME}/box/oauth/authorize",
+   "oauth_login_url": "https://${PRIMARY_HOSTNAME}/auth/oauth/authorize",
    "oauth_token_url": "http://localhost:10222/oauth/token",
+   "oauth_revoke_url": "http://localhost:10222/oauth/revoke",
    "authorize_url": "https://${PRIMARY_HOSTNAME}/admin/oauth-authorization"
 }
 EOF

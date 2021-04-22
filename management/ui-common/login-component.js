@@ -40,7 +40,6 @@ export default Vue.component('login', function(resolve, reject) {
                 username: '',
                 password: '',
                 totp_token: '',
-                stay_signed_in: false,
                 
                 /* errors */
                 error_ref: null
@@ -86,7 +85,6 @@ export default Vue.component('login', function(resolve, reject) {
                 axios.post('user/login', {
                     username: this.username,
                     password: this.password,
-                    stay_signed_in: this.stay_signed_in
                 }, {
                     headers: request_headers
                 }).then((response) => {

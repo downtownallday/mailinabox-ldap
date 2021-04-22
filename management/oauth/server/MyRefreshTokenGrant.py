@@ -35,8 +35,4 @@ class MyRefreshTokenGrant(grants.RefreshTokenGrant):
 		return G.storage.query_user(credential.user_id)
 
 	def revoke_old_credential(self, credential):
-		log.debug(
-			'revoke_old_credential: %s', credential.access_token,
-			{ 'client': credential.client_id }
-		)
 		G.storage.revoke_token(credential, delay_s=5)
