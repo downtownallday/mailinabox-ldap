@@ -246,7 +246,6 @@ def add_sessions(app, miabenv, miab_auth_service, log_failed_login):
 			'SESSION_COOKIE_SAMESITE': 'Strict',
 			'SESSION_COOKIE_HTTPONLY': True,
 			'SESSION_REFRESH_EACH_REQUEST': True,
-			'SESSION_COOKIE_PATH': '/auth/',
 		})
 		app.session_interface = MySecureCookieSessionInterface()
 		log.debug('sessions: digest=%s key=%s', app.session_interface.digest_method(), app.secret_key)

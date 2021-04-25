@@ -75,7 +75,6 @@ def decode_and_validate_jwt(oauth_config, jwt, leeway=0):
 	   InvalidTokenError
 
 	'''
-	log.debug('validate jwt: %s', jwt)
 	claims = jose.jwt.decode(
 		jwt,
 		oauth_config['jwt_signature_key']['k'],
@@ -231,7 +230,7 @@ def create_authorization_response(oauth_config, code, state):
 		return (str(e), 500)
 
 	def setcookie(name, value):
-		response.headers.add('Set-Cookie', f'{name}={value}; Secure; Path=/admin; SameSite=Strict; max-age=30')
+		response.headers.add('Set-Cookie', f'{name}={value}; Secure; Path=/; SameSite=Strict; max-age=30')
 
 	# redirect with the access token in cookies
 	response = make_response('OK', 302)
