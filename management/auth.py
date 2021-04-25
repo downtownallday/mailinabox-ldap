@@ -124,23 +124,29 @@ class KeyAuthService:
 				result.update({
 					'user_id': claims['sub'],
 					'privs': claims['privs'],
-					'bearer_token': header['value'],
+					#'bearer_token': header['value'],
 					'claims': claims,
 				})
 			except Exception as e:
 				log.warning(
-					'Could not verify jwt: %s: %s', 
+					'Could not verify jwt: %s: ...%s', 
 					str(e), 
-					header['value']
+					header['value'][-5:]
 				)
 				raise ValueError("Bearer token validation failed.") from e
 			
 		else:
 			raise ValueError("Unknown authorization scheme")	
 
-		log.debug("auth succeeded: %s", result, {
-			"username": result["user_id"]
-		})
+		log.debug('auth succeeded: token="%s" %s leeway=%s',
+				  '' if header['scheme'] != 'Bearer' \
+				     else '...'+header['value'][-5:],
+				  result, 
+				  leeway,
+				  {
+					  "client": oauth_config['client']["client_id"],
+					  "username": result["user_id"]
+				  })
 		return result
 
 	def check_user_auth(self, email, pw, request, env):

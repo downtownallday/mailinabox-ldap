@@ -517,22 +517,19 @@ $(function() {
   else if (auth.is_valid()) {
     auth.remember({munin:true});
     api_credentials = auth.as_array();
-    if (typeof localStorage != 'undefined') {
-      var panel = localStorage.getItem("miab-cp-lastpanel");
-      if (! panel || panel == 'login')
-        localStorage.setItem("miab-cp-lastpanel", "system_status")
-    }
   }
   else {
-    api_credentials = AuthInfo.recall()
+    api_credentials = AuthInfo.recall();
+    auth = new AuthInfo();
   }
-
+  
   // Recall what the user was last looking at.
+  var panel = 'login';
   if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel") && api_credentials[0]) {
-    show_panel(localStorage.getItem("miab-cp-lastpanel"));
-  } else {
-    show_panel('login');
+    panel = localStorage.getItem("miab-cp-lastpanel");
   }
+  if (auth.is_set() && panel=='login') panel='system_status';
+  show_panel(panel);
 })
 
         </script>
