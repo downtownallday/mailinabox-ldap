@@ -321,6 +321,7 @@ function ajax_with_indicator(options) {
         });
       },
       (text, xhr) => {
+        if (xhr.status == 403) return;
         var len = refresh_queue.length;
         var xmsg = (xhr.status==400 ? `(${text})` : '');
         refresh_queue = [];
@@ -495,7 +496,7 @@ function get_oauth_login() {
   document.cookie.split('; ').forEach(item => {
     Object.keys(_cookie_map).forEach( name => {
       if (item.startsWith(name + '='))
-          document.cookie = name+'=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=Strict';
+          document.cookie = name+'=; path=/admin/; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=Strict';
     });
   });
 
