@@ -772,7 +772,8 @@ def oauth_authorization():
 	response = auth_oauth.create_authorization_response(
 		oauth_config, 
 		code, 
-		state
+		state,
+		auth_service
 	)
 	return response
 
@@ -782,17 +783,18 @@ def oauth_authorization():
 def oauth_refresh():
 	# refresh an access token
 	try:
-		refresh_token = request.form.get('refresh_token')
-		if not refresh_token:
+		s_refresh_token = request.form.get('refresh_token')
+		if not s_refresh_token:
 			data = json.loads(request.data)
-			refresh_token = data['refresh_token']
+			s_refresh_token = data['refresh_token']
 	except (KeyError, json.decoder.JSONDecodeError):
 		return ('Missing required parameter', 400)
 
 	response = auth_oauth.create_refresh_response(
 		oauth_config,
 		request,
-		refresh_token
+		s_refresh_token,
+		auth_service
 	)
 	return response
 
@@ -801,13 +803,14 @@ def oauth_refresh():
 @authorized_personnel_only
 def oauth_revoke():
 	try:
-		refresh_token = request.form['refresh_token']
+		s_refresh_token = request.form['refresh_token']
 	except KeyError:
 		return ('Missing required parameter', 400)
 
 	response = auth_oauth.create_revoke_response(
 		oauth_config,
-		refresh_token
+		s_refresh_token,
+		auth_service
 	)
 	return response
 

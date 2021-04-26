@@ -4,6 +4,7 @@ import os
 import json
 import requests
 import logging
+import hmac
 from authlib.common.encoding import (
 	to_bytes,
 	urlsafe_b64decode,
@@ -205,7 +206,41 @@ def revoke_token(oauth_config, token, token_type):
 	return post
 
 
-def create_authorization_response(oauth_config, code, state):
+def create_hmac(str_data, key):
+	mac = hmac.new(
+		key.encode('ascii'),
+		str_data.encode('utf8'),
+		digestmod="sha256"
+	).hexdigest()
+	return mac
+
+def sign_refresh_token(refresh_token, auth_service):
+	'''use this to sign refresh tokens so they invalidate on server
+	restarts (when auth_service.key is regenerated)
+	
+	`auth_service` is a KeyAuthService instance
+
+	'''
+	mac = create_hmac(refresh_token, auth_service.key)
+	return mac + "." + refresh_token
+
+def validate_signed_refresh_token(s_refresh_token, auth_service):
+	'''validate a signed refresh token and return the actual refresh token
+	without signature.
+
+	`s_refresh_token` is the signed refresh token
+	`auth_service` is a KeyAuthService instance
+
+	'''
+	s = s_refresh_token.split(".")
+	if len(s) != 2:
+		raise ValueError('Not a valid signature format')
+	if not hmac.compare_digest(create_hmac(s[1], auth_service.key), s[0]):
+		raise InvalidTokenError('signature validation failed')
+	# return the refresh token without signature
+	return s[1]
+
+def create_authorization_response(oauth_config, code, state, auth_service):
 	# obtain an access token from the oauth server
 	post = obtain_access_token(oauth_config, code)
 	if post.status_code == 400:
@@ -237,7 +272,7 @@ def create_authorization_response(oauth_config, code, state):
 	response.headers['Location'] = '/'
 	setcookie("auth-user", claims.get_user_id())
 	setcookie("auth-token", json['access_token'])
-	setcookie("auth-refresh-token", json['refresh_token'])
+	setcookie("auth-refresh-token", sign_refresh_token(json['refresh_token'], auth_service))
 	setcookie("auth-expires-in", json['expires_in']),
 	setcookie("auth-isadmin", 1 if claims.has_priv('admin') else 0)
 	setcookie("auth-state-ssi", state['ssi'])
@@ -246,7 +281,18 @@ def create_authorization_response(oauth_config, code, state):
 
 
 
-def create_refresh_response(oauth_config, request, refresh_token):
+def create_refresh_response(oauth_config, request, s_refresh_token, auth_service):
+	try:
+		refresh_token = validate_signed_refresh_token(
+			s_refresh_token,
+			auth_service
+		)
+	except InvalidTokenError as e:
+		log.debug('Signed refresh_token failed validation: %s', str(e))
+		return ('Token not valid', 403)
+	except ValueError as e:
+		return (str(e), 400)
+	
 	# retrieve new tokens from the oauth server
 	post = refresh_access_token( oauth_config, refresh_token )
 	if post.status_code == 400:
@@ -279,13 +325,23 @@ def create_refresh_response(oauth_config, request, refresh_token):
 
 	return jsonify({
 		"token": json['access_token'],
-		"refresh_token": json['refresh_token'],
+		"refresh_token":sign_refresh_token(json['refresh_token'], auth_service),
 		"expires_in": json['expires_in'],
 		"isadmin": 1 if claims.has_priv('admin') else 0
 	})
 
 
-def create_revoke_response(oauth_config, refresh_token):
+def create_revoke_response(oauth_config, s_refresh_token, auth_service):
+	try:
+		refresh_token = validate_signed_refresh_token(
+			s_refresh_token,
+			auth_service
+		)
+	except InvalidTokenError as e:
+		return ('Token not valid', 403)
+	except ValueError as e:
+		return (str(e), 400)
+	
 	post = revoke_token( oauth_config, refresh_token, 'refresh_token' )
 	if post.status_code == 200:
 		return "OK"
