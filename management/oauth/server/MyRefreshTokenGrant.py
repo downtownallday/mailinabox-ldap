@@ -40,4 +40,8 @@ class MyRefreshTokenGrant(grants.RefreshTokenGrant):
 		return G.storage.query_user(credential.user_id)
 
 	def revoke_old_credential(self, credential):
-		G.storage.revoke_token(credential, delay_s=0)
+		client = G.storage.query_client(credential.get_client_id())
+		delay = 0
+		if client:
+			delay = client.get_token_policy('OAUTH2_REVOKE_DELAY_SECS', 0)
+		G.storage.revoke_token(credential, delay_s=delay)

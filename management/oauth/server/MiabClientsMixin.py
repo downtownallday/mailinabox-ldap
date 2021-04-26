@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import subprocess
 import os
 import json
+import time
 
 from .Storage import Storage
 from .AuthClient import AuthClient
@@ -94,12 +95,20 @@ class MiabClientsMixin(Storage):
 
 			#
 			# private claims function providing additional JWT claims
-			# required by dovecot
+			# required by dovecot and roundcube
 			#
 			def jwt_private_claims(client, grant_type, user, scope):
 				return {
+					# required by dovecot
 					'username': user['user_id'],
-					'active': True
+					'active': True,
+					# Add jti to avoid UNIQUE contraint failure when
+					# roundcube sends simultaneous refresh
+					# queries. Without jti, each of the generated
+					# access tokens are identical since all claims are
+					# identical, including 'iat' which is accurate
+					# only to the second
+					'jti': str(time.time())
 				}
 
 			# create the AuthClient instance
@@ -130,10 +139,11 @@ class MiabClientsMixin(Storage):
 					},
 					'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
 						# refresh_token lifetime per grant_type
-						'authorization_code': 24 * 60 * 60,
-						'refresh_token': 25 * 60 * 60
+						'authorization_code': 60 * 60 * 24 * 1,
+						'refresh_token': 60 * 60 * 24 * 7
 					},
 					'OAUTH2_REFRESH_TOKEN_GENERATOR': True,
+					'OAUTH2_REVOKE_DELAY_SECS': 5,
 					'OAUTH2_JWT_TOKENS': jwt_tokens
 				},
 
@@ -199,7 +209,7 @@ class MiabClientsMixin(Storage):
 					},
 					'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
 						# refresh_token lifetime per grant_type
-						'authorization_code': 60 * 60 * 24 * 7,
+						'authorization_code': 60 * 60 * 24 * 1,
 						'refresh_token': 60 * 60 * 24 * 7
 					},
 					'OAUTH2_REFRESH_TOKEN_GENERATOR': True,
