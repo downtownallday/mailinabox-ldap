@@ -321,11 +321,12 @@ function ajax_with_indicator(options) {
         });
       },
       (text, xhr) => {
-        if (xhr.status == 403) return;
         var len = refresh_queue.length;
         var xmsg = (xhr.status==400 ? `(${text})` : '');
         refresh_queue = [];
-        if (len == 1 && old_error)
+        if (xhr.status == 403)
+          return;
+        else if (len == 1 && old_error)
           old_error(text, xhr);
         else 
           show_modal_error("Error", `Something went wrong, sorry. ${xmsg}`);
@@ -431,9 +432,18 @@ function do_logout() {
   }            
   const auth = new AuthInfo(api_credentials);
   if (auth.is_refreshable()) {
-    api("/oauth-revoke", "POST",
-        { refresh_token: auth.refresh_token },
-        clear, clear);
+    $.ajax({
+      url: "/admin/oauth-revoke",
+      method: "POST",
+      cache: false,
+      data: { refresh_token: auth.refresh_token },
+      processData: true,
+      beforeSend: function(xhr) {
+        xhr.setRequestHeader('Authorization', auth.authorization_header);
+      },
+      success: clear,
+      error: clear
+    });
   }
   else {
     clear();
@@ -488,7 +498,7 @@ function get_oauth_login() {
     Object.keys(_cookie_map).forEach( name => {
       if (item.startsWith(name + '='))
           oauthinfo[_cookie_map[name].key] = 
-             _cookie_map[name].type(item.split('=')[1]);
+             _cookie_map[name].type(decodeURIComponent(item.split('=')[1]));
     });
   });
   

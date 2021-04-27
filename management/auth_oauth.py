@@ -4,7 +4,10 @@ import os
 import json
 import requests
 import logging
-import hmac
+import urllib
+
+import encryption_utils
+
 from authlib.common.encoding import (
 	to_bytes,
 	urlsafe_b64decode,
@@ -17,8 +20,8 @@ from authlib.jose.errors import (
     InvalidTokenError,
 )
 from flask import (
-	make_response, 
-	jsonify
+	jsonify,
+	redirect
 )
 
 
@@ -206,46 +209,13 @@ def revoke_token(oauth_config, token, token_type):
 	return post
 
 
-def create_hmac(str_data, key):
-	mac = hmac.new(
-		key.encode('ascii'),
-		str_data.encode('utf8'),
-		digestmod="sha256"
-	).hexdigest()
-	return mac
-
-def sign_refresh_token(refresh_token, auth_service):
-	'''use this to sign refresh tokens so they invalidate on server
-	restarts (when auth_service.key is regenerated)
-	
-	`auth_service` is a KeyAuthService instance
-
-	'''
-	mac = create_hmac(refresh_token, auth_service.key)
-	return mac + "." + refresh_token
-
-def validate_signed_refresh_token(s_refresh_token, auth_service):
-	'''validate a signed refresh token and return the actual refresh token
-	without signature.
-
-	`s_refresh_token` is the signed refresh token
-	`auth_service` is a KeyAuthService instance
-
-	'''
-	s = s_refresh_token.split(".")
-	if len(s) != 2:
-		raise ValueError('Not a valid signature format')
-	if not hmac.compare_digest(create_hmac(s[1], auth_service.key), s[0]):
-		raise InvalidTokenError('signature validation failed')
-	# return the refresh token without signature
-	return s[1]
-
-def create_authorization_response(oauth_config, code, state, auth_service):
+def create_authorization_response(oauth_config, code, state):
 	# obtain an access token from the oauth server
 	post = obtain_access_token(oauth_config, code)
 	if post.status_code == 400:
-		json = post.json()
-		return ( json.get('error_description', json.get('error')), 400 )
+		#json = post.json()
+		#return ( json.get('error_description', json.get('error')), 400 )
+		return redirect('/')
 	elif post.status_code != 200:
 		return ("Error contacting oauth server", 500)
 
@@ -265,39 +235,35 @@ def create_authorization_response(oauth_config, code, state, auth_service):
 		return (str(e), 500)
 
 	def setcookie(name, value):
-		response.headers.add('Set-Cookie', f'{name}={value}; Secure; Path=/; SameSite=Strict; max-age=30')
+		response.headers.add('Set-Cookie', f'{name}={urllib.parse.quote(value)}; Secure; Path=/; SameSite=Strict; max-age=30')
 
 	# redirect with the access token in cookies
-	response = make_response('OK', 302)
-	response.headers['Location'] = '/'
+	response = redirect('/') 
 	setcookie("auth-user", claims.get_user_id())
 	setcookie("auth-token", json['access_token'])
-	setcookie("auth-refresh-token", sign_refresh_token(json['refresh_token'], auth_service))
-	setcookie("auth-expires-in", json['expires_in']),
-	setcookie("auth-isadmin", 1 if claims.has_priv('admin') else 0)
-	setcookie("auth-state-ssi", state['ssi'])
+	setcookie("auth-refresh-token", encryption_utils.encrypt(json['refresh_token']))
+	setcookie("auth-expires-in", str(json['expires_in'])),
+	setcookie("auth-isadmin", "1" if claims.has_priv('admin') else "0")
+	setcookie("auth-state-ssi", str(state['ssi']))
 	return response
 
 
 
 
-def create_refresh_response(oauth_config, request, s_refresh_token, auth_service):
+def create_refresh_response(oauth_config, request, s_refresh_token):
 	try:
-		refresh_token = validate_signed_refresh_token(
-			s_refresh_token,
-			auth_service
-		)
-	except InvalidTokenError as e:
-		log.debug('Signed refresh_token failed validation: %s', str(e))
+		refresh_token = encryption_utils\
+			.decrypt(s_refresh_token)\
+			.decode('ascii', 'strict')
+	except Exception as e:
+		log.warning('refresh_token failed validation: %s', str(e))
 		return ('Token not valid', 403)
-	except ValueError as e:
-		return (str(e), 400)
 	
 	# retrieve new tokens from the oauth server
 	post = refresh_access_token( oauth_config, refresh_token )
-	if post.status_code == 400:
-		json = post.json()
-		return ( json.get('error_description', json.get('error')), 400 )
+	if post.status_code >= 400 and post.status_code < 500:
+		log.warning('refresh_token rejected: %s', post.text)
+		return ('Token not valid', 403)
 	elif post.status_code != 200:
 		return ("Error contacting oauth server", 500)
 	
@@ -325,28 +291,26 @@ def create_refresh_response(oauth_config, request, s_refresh_token, auth_service
 
 	return jsonify({
 		"token": json['access_token'],
-		"refresh_token":sign_refresh_token(json['refresh_token'], auth_service),
+		"refresh_token": encryption_utils.encrypt(json['refresh_token']),
 		"expires_in": json['expires_in'],
 		"isadmin": 1 if claims.has_priv('admin') else 0
 	})
 
 
-def create_revoke_response(oauth_config, s_refresh_token, auth_service):
+def create_revoke_response(oauth_config, s_refresh_token):
 	try:
-		refresh_token = validate_signed_refresh_token(
-			s_refresh_token,
-			auth_service
-		)
-	except InvalidTokenError as e:
-		return ('Token not valid', 403)
-	except ValueError as e:
-		return (str(e), 400)
+		refresh_token = encryption_utils\
+			.decrypt(s_refresh_token)\
+			.decode('ascii', 'strict')
+	except Exception as e:
+		log.warning('refresh_token failed validation: %s', str(e))
+		return (InvalidTokenError().error, 403)
 	
 	post = revoke_token( oauth_config, refresh_token, 'refresh_token' )
 	if post.status_code == 200:
 		return "OK"
-	if post.status_code == 400:
-		json = post.json()
-		return ( json.get('error_description', json.get('error')), 400 )
+	if post.status_code >= 400 and post.status_code <500:
+		log.warning('revoke rejected: %s', post.text)
+		return (post.json().get('error', InvalidTokenError().error), 403)
 	else:
 		return ("Error contacting oauth server", 500)

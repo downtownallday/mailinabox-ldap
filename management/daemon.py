@@ -772,8 +772,7 @@ def oauth_authorization():
 	response = auth_oauth.create_authorization_response(
 		oauth_config, 
 		code, 
-		state,
-		auth_service
+		state
 	)
 	return response
 
@@ -793,8 +792,7 @@ def oauth_refresh():
 	response = auth_oauth.create_refresh_response(
 		oauth_config,
 		request,
-		s_refresh_token,
-		auth_service
+		s_refresh_token
 	)
 	return response
 
@@ -809,8 +807,7 @@ def oauth_revoke():
 
 	response = auth_oauth.create_revoke_response(
 		oauth_config,
-		s_refresh_token,
-		auth_service
+		s_refresh_token
 	)
 	return response
 
@@ -897,7 +894,6 @@ def log_failed_login(request):
 
 
 # APP
-
 # initialize python logger
 from daemon_logger import add_python_logging
 add_python_logging(app)
@@ -925,7 +921,7 @@ add_oauth2(app, env, auth_service, log_failed_login)
 
 # prevent the browser from caching files too long
 app.config.from_mapping({
-        'SEND_FILE_MAX_AGE_DEFAULT': timedelta(seconds=10) if app.debug else timedelta(minutes=30)
+	'SEND_FILE_MAX_AGE_DEFAULT': timedelta(seconds=10) if app.debug else timedelta(minutes=30)
 })
 
 
@@ -948,6 +944,9 @@ if __name__ == '__main__':
 		session_secret_updated()
 
 	if "APIKEY" in os.environ: auth_service.key = os.environ["APIKEY"]
+
+	import encryption_utils
+	encryption_utils.init(auth_service.key)
 
 	if not app.debug:
 		app.logger.addHandler(utils.create_syslog_handler())

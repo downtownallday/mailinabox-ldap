@@ -109,6 +109,9 @@ export function init_miab_api(inst) {
                 //
                 throw new AuthenticationError(error, error.response.data.status.reason);
             }
+            else if (error.response.status == 403) {
+                    throw new AuthenticationError(error, "Login required");
+            }
             else if (error.response.status == 401) {
                 // refresh the access token
                 const promise = refresh_access_token(inst, error.config);
