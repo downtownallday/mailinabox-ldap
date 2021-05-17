@@ -49,7 +49,7 @@ fi
 # in the first dialog prompt, so we should do this before that starts.
 cat > /usr/local/bin/mailinabox << EOF;
 #!/bin/bash
-cd `pwd`
+cd $(pwd)
 source setup/start.sh
 EOF
 chmod +x /usr/local/bin/mailinabox
@@ -97,7 +97,7 @@ PUBLIC_IP=$PUBLIC_IP
 PUBLIC_IPV6=$PUBLIC_IPV6
 PRIVATE_IP=$PRIVATE_IP
 PRIVATE_IPV6=$PRIVATE_IPV6
-MTA_STS_MODE=${MTA_STS_MODE-}
+MTA_STS_MODE=${DEFAULT_MTA_STS_MODE:-enforce}
 EOF
 
 # Start service configuration.
@@ -141,7 +141,7 @@ source setup/firstuser.sh
 # We'd let certbot ask the user interactively, but when this script is
 # run in the recommended curl-pipe-to-bash method there is no TTY and
 # certbot will fail if it tries to ask.
-if [ ! -d $STORAGE_ROOT/ssl/lets_encrypt/accounts/acme-v02.api.letsencrypt.org/ ]; then
+if [ -z "${SKIP_CERTBOT:-}" ] && [ ! -d $STORAGE_ROOT/ssl/lets_encrypt/accounts/acme-v02.api.letsencrypt.org/ ]; then
 echo
 echo "-----------------------------------------------"
 echo "Mail-in-a-Box uses Let's Encrypt to provision free SSL/TLS certificates"

@@ -34,6 +34,7 @@ def get_services():
 		{ "name": "SSH Login (ssh)", "port": get_ssh_port(), "public": True, },
 		{ "name": "Public DNS (nsd4)", "port": 53, "public": True, },
 		{ "name": "Incoming Mail (SMTP/postfix)", "port": 25, "public": True, },
+		{ "name": "Outgoing Mail (SMTP 465/postfix)", "port": 465, "public": True, },
 		{ "name": "Outgoing Mail (SMTP 587/postfix)", "port": 587, "public": True, },
 		#{ "name": "Postfix/master", "port": 10587, "public": True, },
 		{ "name": "IMAPS (dovecot)", "port": 993, "public": True, },
@@ -663,6 +664,8 @@ def check_mail_domain(domain, env, output):
 	mx = query_dns(domain, "MX", nxdomain=None)
 
 	if mx is None:
+		mxhost = None
+	elif mx == "[timeout]":
 		mxhost = None
 	else:
 		# query_dns returns a semicolon-delimited list
