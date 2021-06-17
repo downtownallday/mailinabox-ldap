@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title> Login - MiaB-LDAP </title>
+    <base href="/auth/">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="robots" content="noindex, nofollow">
+
+    <link rel="stylesheet" href="ui-common/ui-bootstrap.css">
+    
+    <!-- vue and axios -->
+    <!-- script src="https://cdn.jsdelivr.net/npm/vue@2"></script -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios"></script>
+
+    <!-- our scripts -->
+    <script>axios.defaults.baseURL="/auth"</script>
+    <script src="user/ui/login-page.js" type="module"></script>
+  </head>
+    
+  <body>
+
+    <page-layout id="login_page">
+      
+      <template v-slot:header>
+        <page-header
+          :header_text="(me ? me.server_hostname : 'Mail-In-A-Box') + ' Login'"
+          :loading_counter="loading">
+        </page-header>
+      </template>
+      
+      
+      <!-- 
+        -- show error messages, if any 
+        -->
+      <error-msgs ref="error_msgs"></error-msgs>
+      
+      
+      <!--
+        -- once the server returns the current state, display
+        -- the appropriate form
+        -->
+      <div v-if="me">
+                
+        <!-- 
+          -- authenticate user if not logged in
+          -->
+        <login v-if="! me.is_authenticated()" class="mt-3"
+               :error_handler="$refs.error_msgs"
+               v-on:loading="loading+=$event"
+               v-on:success="login_success"
+               ></login>
+        
+      </div>
+      
+    </page-layout>
+    
+  </body>
+</html>
+

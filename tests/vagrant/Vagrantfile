@@ -1,4 +1,5 @@
-load './funcs.rb'
+_DIR = File.expand_path File.dirname(__FILE__)
+load _DIR + '/funcs.rb'
 
 Vagrant.configure("2") do |config|
 

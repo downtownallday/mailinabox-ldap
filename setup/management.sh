@@ -50,8 +50,8 @@ hide_output $venv/bin/pip install --upgrade pip
 hide_output $venv/bin/pip install --upgrade \
 	rtyaml "email_validator>=1.0.0" "exclusiveprocess" \
 	flask dnspython python-dateutil \
-	qrcode[pil] pyotp \
-	"idna>=2.0.0" "cryptography==2.2.2" boto psutil postfix-mta-sts-resolver b2sdk ldap3
+    qrcode[pil] pyotp \
+	"idna>=2.0.0" "cryptography" boto psutil postfix-mta-sts-resolver b2sdk ldap3 Authlib
 
 # CONFIGURATION
 
@@ -104,6 +104,9 @@ cp --remove-destination conf/mailinabox.service /lib/systemd/system/mailinabox.s
 hide_output systemctl link -f /lib/systemd/system/mailinabox.service
 hide_output systemctl daemon-reload
 hide_output systemctl enable mailinabox.service
+
+# initialize oauth
+source setup/oauth.sh
 
 # Perform nightly tasks at 3am in system time: take a backup, run
 # status checks and email the administrator any changes.

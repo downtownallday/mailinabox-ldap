@@ -1,4 +1,5 @@
 #!/usr/local/lib/mailinabox/env/bin/python3
+# -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 #
 # During development, you can start the Mail-in-a-Box control panel
 # by running this script, e.g.:
@@ -9,21 +10,57 @@
 
 import os, os.path, re, json, time
 import multiprocessing.pool, subprocess
+from datetime import timedelta
 
 from functools import wraps
 
 from flask import Flask, request, render_template, abort, Response, send_from_directory, make_response
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import auth, utils
 from mailconfig import get_mail_users, get_mail_users_ex, get_admins, add_mail_user, set_mail_password, set_mail_display_name, remove_mail_user
 from mailconfig import get_mail_user_privileges, add_remove_mail_user_privilege
 from mailconfig import get_mail_aliases, get_mail_aliases_ex, get_mail_domains, add_mail_alias, remove_mail_alias
 from mfa import get_public_mfa_state, enable_mfa, disable_mfa
-import mfa_totp
+import mfa_totp, auth_oauth
 
 env = utils.load_environment()
 
 auth_service = auth.KeyAuthService()
+
+oauth_config = {
+	# client config json: see setup/oauth.sh
+	'client': auth_oauth.get_client_config(env),
+	
+	# the key, algorithm and other info needed to verify the oauth
+	# server's signature on a jwt access token
+	'jwt_signature_key': auth_oauth.get_jwt_signature_verification_key(env),
+
+	# once a jwt's signature is verified, it's claims are also
+	# validated against the following list
+	#
+	# iss: expected issuer
+	# sub: exists (must be the user email address)
+	# aud: required scopes
+	# privs: private claim containing user's list of privileges
+	#
+	'jwt_claims_options': {
+		'iss': {
+			'essential': True,
+			'value': env['PRIMARY_HOSTNAME']
+		},
+		'sub': {
+			'essential': True
+		},
+		'aud': {
+			'essential': True,
+			'values': [ 'miabldap-console' ]
+		},
+		'privs': {
+			'essential': True
+		}
+	}
+}
 
 # We may deploy via a symbolic link, which confuses flask's template finding.
 me = __file__
@@ -41,62 +78,91 @@ with open(os.path.join(os.path.dirname(me), "csr_country_codes.tsv")) as f:
 		csr_country_codes.append((code, name))
 
 app = Flask(__name__, template_folder=os.path.abspath(os.path.join(os.path.dirname(me), "templates")))
+app.wsgi_app = ProxyFix(app.wsgi_app)
 
 # Decorator to protect views that require a user with 'admin' privileges.
-def authorized_personnel_only(viewfunc):
-	@wraps(viewfunc)
-	def newview(*args, **kwargs):
-		# Authenticate the passed credentials, which is either the API key or a username:password pair
-		# and an optional X-Auth-Token token.
-		error = None
-		privs = []
+def authorized_personnel_only_opt(leeway=0, scheme=None):
+	_leeway = leeway
+	_scheme = scheme
+	def _authorized_personnel_only(viewfunc):
+		@wraps(viewfunc)
+		def newview(*args, **kwargs):
+			# Authenticate the passed credentials, which is either the API key or a username:password pair
+			# and an optional X-Auth-Token token.
+			error = None
+			privs = []
 
-		try:
-			email, privs = auth_service.authenticate(request, env)
-		except ValueError as e:
-			# Write a line in the log recording the failed login
-			log_failed_login(request)
+			try:
+				auth_result = auth_service.authenticate(request, env, oauth_config, leeway=_leeway)
+				if _scheme and auth_result['scheme'] != _scheme:
+					raise ValueError(f'Only {_scheme} authentication accepted')
+				email = auth_result['user_id']
+				privs = auth_result['privs']
+			except ValueError as e:
+				if isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
+					# access token is expired
+					return Response(
+						json.dumps({
+							"status": "error",
+							"reason": str(e.__cause__)
+						})+"\n", 
+						status=401, 
+						mimetype='application/json', 
+						headers={ 
+							'WWW-Authenticate': f'Bearer realm={auth_service.auth_realm}' 
+						})
 
-			# Authentication failed.
-			error = str(e)
+				# Write a line in the log recording the failed login
+				log_failed_login(request)
 
-		# Authorized to access an API view?
-		if "admin" in privs:
-			# Store the email address of the logged in user so it can be accessed
-			# from the API methods that affect the calling user.
-			request.user_email = email
-			request.user_privs = privs
+				# Authentication failed.
+				error = str(e)
 
-			# Call view func.
-			return viewfunc(*args, **kwargs)
+			# Authorized to access an API view?
+			if "admin" in privs:
+				# Store the email address of the logged in user so it can be accessed
+				# from the API methods that affect the calling user.
+				request.user_email = email
+				request.user_privs = privs
 
-		if not error:
-			error = "You are not an administrator."
+				# Call view func.
+				return viewfunc(*args, **kwargs)
 
-		# Not authorized. Return a 401 (send auth) and a prompt to authorize by default.
-		status = 401
-		headers = {
-			'WWW-Authenticate': 'Basic realm="{0}"'.format(auth_service.auth_realm),
-			'X-Reason': error,
-		}
+			if not error:
+				error = "You are not an administrator."
 
-		if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-			# Don't issue a 401 to an AJAX request because the user will
-			# be prompted for credentials, which is not helpful.
-			status = 403
-			headers = None
+			# Not authorized. Return a 401 (send auth) and a prompt to authorize by default.
+			status = 401
+			headers = {
+				'WWW-Authenticate': 'Basic realm="{0}"'.format(auth_service.auth_realm),
+				'X-Reason': error,
+			}
 
-		if request.headers.get('Accept') in (None, "", "*/*"):
-			# Return plain text output.
-			return Response(error+"\n", status=status, mimetype='text/plain', headers=headers)
-		else:
-			# Return JSON output.
-			return Response(json.dumps({
-				"status": "error",
-				"reason": error,
-				})+"\n", status=status, mimetype='application/json', headers=headers)
+			if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+				# Don't issue a 401 to an AJAX request because the user will
+				# be prompted for credentials, which is not helpful.
+				status = 403
+				headers = None
 
-	return newview
+			if request.headers.get('Accept') in (None, "", "*/*"):
+				# Return plain text output.
+				return Response(error+"\n", status=status, mimetype='text/plain', headers=headers)
+			else:
+				# Return JSON output.
+				return Response(json.dumps({
+					"status": "error",
+					"reason": error,
+					})+"\n", status=status, mimetype='application/json', headers=headers)
+		return newview
+	return _authorized_personnel_only
+
+
+authorized_personnel_only = authorized_personnel_only_opt(
+	leeway=0,
+	scheme=None
+)
+
+
 
 @app.errorhandler(401)
 def unauthorized(error):
@@ -130,18 +196,27 @@ def index():
 
 		backup_s3_hosts=backup_s3_hosts,
 		csr_country_codes=csr_country_codes,
+
+		oauth=oauth_config["client"],
 	)
 
 @app.route('/me')
 def me():
 	# Is the caller authorized?
 	try:
-		email, privs = auth_service.authenticate(request, env)
+		auth_result = auth_service.authenticate(request, env, oauth_config)
+		email = auth_result['user_id']
+		privs = auth_result['privs']
 	except ValueError as e:
 		if "missing-totp-token" in str(e):
 			return json_response({
 				"status": "missing-totp-token",
 				"reason": str(e),
+			})
+		elif isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
+			return json_response({
+				"status": "token-expired",
+				"reason": str(e)
 			})
 		else:
 			# Log the failed login
@@ -158,7 +233,7 @@ def me():
 	}
 
 	# Is authorized as admin? Return an API key for future use.
-	if "admin" in privs:
+	if "admin" in privs and auth_result['scheme']=='Basic':
 		resp["api_key"] = auth_service.create_user_key(email, env)
 
 	# Return.
@@ -672,11 +747,75 @@ def postgrey_whitelist_handler():
 
 		return "OK. Saved and Postgrey reloaded."
 
+
+### OAUTH
+
+@app.route('/oauth-authorization', methods=["GET"])
+def oauth_authorization():
+	try:
+		code = request.args['code']
+		state_str = request.args.get('state', '')
+	except KeyError:
+		return ("Missing required parameter", 400)
+
+	state = {
+		'ssi': 0  # stay signed in
+	}
+	for str in state_str.split(";"):
+		x = str.split(":", maxsplit=1)
+		if len(x)!=2: continue
+		if x[0] == 'ssi':
+			state['ssi'] = 1 if x[1]=='1' else 0
+		else:
+			app.logger.warning('invalid authorization state: %s', str)
+
+	response = auth_oauth.create_authorization_response(
+		oauth_config, 
+		code, 
+		state
+	)
+	return response
+
+	
+@app.route('/oauth-refresh', methods=["POST"])
+@authorized_personnel_only_opt(leeway=30 * 24 * 60 * 60, scheme='Bearer')
+def oauth_refresh():
+	# refresh an access token
+	try:
+		s_refresh_token = request.form.get('refresh_token')
+		if not s_refresh_token:
+			data = json.loads(request.data)
+			s_refresh_token = data['refresh_token']
+	except (KeyError, json.decoder.JSONDecodeError):
+		return ('Missing required parameter', 400)
+
+	response = auth_oauth.create_refresh_response(
+		oauth_config,
+		request,
+		s_refresh_token
+	)
+	return response
+
+
+@app.route('/oauth-revoke', methods=['POST'])
+@authorized_personnel_only
+def oauth_revoke():
+	try:
+		s_refresh_token = request.form['refresh_token']
+	except KeyError:
+		return ('Missing required parameter', 400)
+
+	response = auth_oauth.create_revoke_response(
+		oauth_config,
+		s_refresh_token
+	)
+	return response
+
 # MUNIN
 
 @app.route('/munin/')
 @app.route('/munin/<path:filename>')
-@authorized_personnel_only
+@authorized_personnel_only_opt(leeway=60 * 60)
 def munin(filename=""):
 	# Checks administrative access (@authorized_personnel_only) and then just proxies
 	# the request to static files.
@@ -684,7 +823,7 @@ def munin(filename=""):
 	return send_from_directory("/var/cache/munin/www", filename)
 
 @app.route('/munin/cgi-graph/<path:filename>')
-@authorized_personnel_only
+@authorized_personnel_only_opt(leeway=60 * 60)
 def munin_cgi(filename):
 	""" Relay munin cgi dynazoom requests
 	/usr/lib/munin/cgi/munin-cgi-graph is a perl cgi script in the munin package
@@ -755,15 +894,35 @@ def log_failed_login(request):
 
 
 # APP
-
+# initialize python logger
 from daemon_logger import add_python_logging
 add_python_logging(app)
 
+# /ui-common
 from daemon_ui_common import add_ui_common
 add_ui_common(app)
 
+# /reports ("activity")
 from daemon_reports import add_reports
 add_reports(app, env, authorized_personnel_only)
+
+# Session support
+from daemon_sessions import add_sessions
+session_secret_updated = add_sessions(app, env, auth_service, log_failed_login)
+
+# /user
+from daemon_user import add_user_endpoints
+add_user_endpoints(app, env, auth_service, log_failed_login)
+
+# /oauth/
+from daemon_oauth2 import add_oauth2
+add_oauth2(app, env, auth_service, log_failed_login)
+
+
+# prevent the browser from caching files too long
+app.config.from_mapping({
+	'SEND_FILE_MAX_AGE_DEFAULT': timedelta(seconds=10) if app.debug else timedelta(minutes=30)
+})
 
 
 if __name__ == '__main__':
@@ -782,8 +941,12 @@ if __name__ == '__main__':
 		hasher = hashlib.sha1()
 		hasher.update(api_key.encode("ascii"))
 		auth_service.key = hasher.hexdigest()
+		session_secret_updated()
 
 	if "APIKEY" in os.environ: auth_service.key = os.environ["APIKEY"]
+
+	import encryption_utils
+	encryption_utils.init(auth_service.key)
 
 	if not app.debug:
 		app.logger.addHandler(utils.create_syslog_handler())

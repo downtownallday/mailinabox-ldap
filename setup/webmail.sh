@@ -110,8 +110,10 @@ cat > $RCM_CONFIG <<EOF;
 \$config['log_dir'] = '/var/log/roundcubemail/';
 \$config['temp_dir'] = '/var/tmp/roundcubemail/';
 \$config['db_dsnw'] = 'sqlite:///$STORAGE_ROOT/mail/roundcube/roundcube.sqlite?mode=0640';
-\$config['default_host'] = 'ssl://localhost';
-\$config['default_port'] = 993;
+#\$config['default_host'] = 'ssl://localhost';
+#\$config['default_port'] = 993;
+\$config['default_host'] = 'localhost';
+\$config['default_port'] = 143;
 \$config['imap_conn_options'] = array(
   'ssl'         => array(
      'verify_peer'  => false,
@@ -147,9 +149,9 @@ cat > $RCM_CONFIG <<EOF;
     'writable'          => false,
     'ldap_version'      => 3,
     'search_fields'     => array( 'mail' ),
-    'name_field'        => 'mail',
+    'name_field'        => 'cn',
     'email_field'       => 'mail',
-    'sort'              => 'mail',
+    'sort'              => 'cn',
     'filter'            => '(objectClass=mailUser)',
     'fuzzy_search'      => false,
     'global_search'     => true,
@@ -162,6 +164,27 @@ cat > $RCM_CONFIG <<EOF;
     # 	'member_filter'   => '(|(objectClass=mailGroup)(objectClass=mailUser))',
     # )
 );
+
+/* ensure roudcube session id's aren't leaked to other parts of the server */
+\$config['session_path'] = '/mail/';
+
+/* prevent CSRF, requires php 7.3+ */
+\$config['session_samesite'] = 'Strict';
+
+/* configure OAuth2 */
+\$config['oauth_provider'] = 'miab-ldap';
+\$config['oauth_provider_name'] = 'Mail-in-a-Box LDAP';
+\$config['oauth_auth_uri'] = 'https://$PRIMARY_HOSTNAME/auth/oauth/authorize';
+\$config['oauth_auth_parameters'] = array();
+\$config['oauth_token_uri'] = 'http://localhost:10222/oauth/token';
+\$config['oauth_scope'] = 'mailbox introspect openid';
+\$config['oauth_client_id'] ='roundcube';
+\$config['oauth_client_secret'] = '$(generate_password 32)';
+\$config['oauth_identity_uri'] = 'http://localhost:10222/oauth/v1/introspect';
+\$config['oauth_identity_fields'] = array('username');
+\$config['oauth_verify_peer'] = true;
+\$config['oauth_login_redirect'] = true;
+
 ?>
 EOF
 

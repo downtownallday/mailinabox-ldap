@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. $(dirname "0")/totp.sh || exit 1
+. $(dirname "0")/../lib/totp.sh || exit 1
 
 while [ $# -gt 0 ]; do
     arg="$1"

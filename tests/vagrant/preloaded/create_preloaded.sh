@@ -3,6 +3,11 @@
 vagrant destroy -f
 rm -f prepcode.txt
 
+if ! vagrant plugin list | grep "vagrant-vbguest" >/dev/null; then
+    vagrant plugin install vagrant-vbguest || exit 1
+fi
+
+vagrant box update
 vagrant up preloaded-ubuntu-bionic64
 upcode=$?
 prepcode=$(cat "./prepcode.txt")
@@ -19,7 +24,13 @@ fi
 
 vagrant halt
 vagrant package
-rm -f preloaded.box
+rm -f preloaded-ubuntu-bionic64.box
 mv package.box preloaded-ubuntu-bionic64.box
 
 vagrant destroy -f
+
+if vagrant box list | awk '{print $1}' | grep -F 'preloaded-miabldap-ubuntu-bionic64' >/dev/null
+then
+    vagrant box remove "preloaded-miabldap-ubuntu-bionic64"
+fi
+

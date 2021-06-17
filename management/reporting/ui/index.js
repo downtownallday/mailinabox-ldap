@@ -4,10 +4,12 @@
 
 import page_settings from "./page-settings.js";
 import page_reports_main from "./page-reports-main.js";
-import { Me, init_authentication_interceptors } from "../../ui-common/authentication.js";
+import { Me, init_miab_api } from "../../ui-common/authentication.js";
 import { AuthenticationError } from "../../ui-common/exceptions.js";
 import UserSettings from "./settings.js";
 
+
+const api = init_miab_api(axios.create());
 
 const app = {
     router: new VueRouter({
@@ -29,6 +31,10 @@ const app = {
     },
         
     data: {
+        /* axios */
+        api,
+
+        /* whoami */
         me: null,
     },
 
@@ -38,7 +44,7 @@ const app = {
         
     methods: {
         getMe: function() {
-            axios.get('me').then(response => {
+            this.api.get('me').then(response => {
                 this.me = new Me(response.data);
             }).catch(error => {
                 this.handleError(error);
@@ -69,8 +75,6 @@ const app = {
 
 
 
-
-init_authentication_interceptors();
     
 UserSettings.load().then(settings => {
     new Vue(app).$mount('#app');

@@ -1,7 +1,13 @@
 #!/bin/bash
 # Nextcloud
 ##########################
-[ "${FEATURE_NEXTCLOUD:-true}" == "false" ] && return 0
+if [ "${FEATURE_NEXTCLOUD:-true}" == "false" ]; then
+	# make sure nextcloud.log exists or fail2ban won't start
+	source /etc/mailinabox.conf # load global vars
+	mkdir -p "$STORAGE_ROOT/owncloud"
+	touch "$STORAGE_ROOT/owncloud/nextcloud.log"
+	return 0
+fi
 
 source setup/functions.sh # load our functions
 source setup/functions-downloads.sh

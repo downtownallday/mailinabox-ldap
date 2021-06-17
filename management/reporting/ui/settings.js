@@ -4,12 +4,8 @@ import { ValueError } from '../../ui-common/exceptions.js';
 window.miabldap = window.miabldap || {};
 
 export class CaptureConfig {
-    static get() {
-        return axios.get('/reports/capture/config').then(response => {
-            var cc = new CaptureConfig();
-            Object.assign(cc, response.data);
-            return cc;
-        });
+    constructor(config) {
+        Object.assign(this, config);
     }
 };
 

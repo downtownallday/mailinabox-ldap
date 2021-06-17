@@ -225,7 +225,7 @@ export default Vue.component('panel-user-activity', function(resolve, reject) {
             getChartData: function(switch_to_tab) {
                 if (this.all_users.length == 0) {
                     this.$emit('loading', 1);
-                    axios.get('reports/uidata/user-list').then(response => {
+                    this.$root.api.get('reports/uidata/user-list').then(response => {
                         this.all_users = response.data;
                         
                     }).catch(error => {
@@ -242,14 +242,15 @@ export default Vue.component('panel-user-activity', function(resolve, reject) {
                 }
 
                 this.$emit('loading', 1);
-                const promise = axios.post('reports/uidata/user-activity', {
+                
+                this.$root.api.post('reports/uidata/user-activity', {
                     row_limit: this.get_row_limit(),
                     user_id: this.user_id.trim(),
                     start_date: this.date_range[0],
                     end_date: this.date_range[1]
                     
                 }).then(response => {
-
+                    
                     this.data_user_id = this.user_id.trim();
                     this.data_date_range = this.date_range;
                     if (!isNaN(switch_to_tab))
@@ -258,7 +259,7 @@ export default Vue.component('panel-user-activity', function(resolve, reject) {
                     this.$emit('change', this.data_user_id);
                     this.show_only_flagged = false;
                     this.show_only_flagged_filter = null;
-
+                    
                     /* setup sent_mail */
                     this.sent_mail = new MailBvTable(
                         response.data.sent_mail, {
@@ -271,7 +272,7 @@ export default Vue.component('panel-user-activity', function(resolve, reject) {
                         .add_tdClass('text-nowrap');
                     this.update_sent_mail_rowVariant();
                     
-
+                    
                     /* setup received_mail */
                     this.received_mail = new MailBvTable(
                         response.data.received_mail, {
@@ -282,7 +283,7 @@ export default Vue.component('panel-user-activity', function(resolve, reject) {
                         .flag_fields()
                         .get_field('connect_time')
                         .add_tdClass('text-nowrap');
-
+                    
                     
                     /* setup imap_conn_summary */
                     this.imap_conn_summary = new MailBvTable(
@@ -295,18 +296,17 @@ export default Vue.component('panel-user-activity', function(resolve, reject) {
                             const f = this.imap_conn_summary.get_field(name);
                             f.add_cls('text-nowrap', 'tdClass');
                         });
-
+                    
                     /* clear imap_details */
                     this.imap_details = null;
-
+                    
                 }).catch(error => {
                     this.$root.handleError(error);
                     
                 }).finally(() => {
                     this.$emit('loading', -1);
                 });
-
-                return promise;
+                
             },
 
             row_clicked: function(item, index, event) {
@@ -325,7 +325,7 @@ export default Vue.component('panel-user-activity', function(resolve, reject) {
             load_imap_details: function(item, index, event) {
                 this.$emit('loading', 1);
                 this.imap_details = null;
-                const promise = axios.post('reports/uidata/imap-details', {
+                this.$root.api.post('reports/uidata/imap-details', {
                     row_limit: this.get_row_limit(),
                     user_id: this.user_id.trim(),
                     start_date: this.date_range[0],

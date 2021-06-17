@@ -34,7 +34,7 @@ export default Vue.component('capture-db-stats', {
 
     methods: {
         getStats: function() {
-            axios.get('/reports/capture/db/stats')
+            this.$root.api.get('/reports/capture/db/stats')
                 .then(response => {
                     this.stats = response.data;
                     this.stats_time = Date.now();

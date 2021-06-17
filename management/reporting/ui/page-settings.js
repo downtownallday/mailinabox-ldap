@@ -64,10 +64,10 @@ export default Vue.component('page-settings', function(resolve, reject) {
             loadData: function() {
                 this.loading += 1;
                 Promise.all([
-                    CaptureConfig.get(),
-                    axios.get('/reports/capture/service/status')
+                    this.$root.api.get('/reports/capture/config'),
+                    this.$root.api.get('/reports/capture/service/status')
                 ]).then(responses => {
-                    this.capture_config = responses[0];
+                    this.capture_config = new CaptureConfig(responses[0].data);
                     if (this.capture_config.status !== 'error') {
                         this.older_than_days = '' +
                             this.capture_config.prune_policy.older_than_days;
@@ -109,7 +109,7 @@ export default Vue.component('page-settings', function(resolve, reject) {
                 this.capture_config.prune_policy.older_than_days =
                     Number(this.older_than_days);
                 newconfig.capture = this.capture;
-                axios.post('/reports/capture/config', newconfig)
+                this.$root.api.post('/reports/capture/config', newconfig)
                     .then(response => {
                         this.loadData();
                     })

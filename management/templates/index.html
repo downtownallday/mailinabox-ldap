@@ -93,7 +93,7 @@
                 <li class="dropdown-header">Advanced Pages</li>
                 <li><a href="#custom_dns" onclick="return show_panel(this);">Custom DNS</a></li>
                 <li><a href="#external_dns" onclick="return show_panel(this);">External DNS</a></li>
-                <li><a href="/admin/munin" target="_blank">Munin Monitoring</a></li>
+                <li><a href="/admin/munin" target="_blank" onclick="if (! new AuthInfo(api_credentials).is_set()) return false">Munin Monitoring</a></li>
                 <li><a href="#postgrey_whitelist" onclick="return show_panel(this);">Postgrey Whitelist</a></li>
               </ul>
             </li>
@@ -110,7 +110,7 @@
             </li>
             <li><a href="#sync_guide" onclick="return show_panel(this);">Contacts/Calendar</a></li>
             <li><a href="#web" onclick="return show_panel(this);">Web</a></li>
-            <li><a href="/admin/reports/" onclick="return api_credentials[0]!=''">Activity</a></li>
+            <li><a href="/admin/reports/" onclick="if (! new AuthInfo(api_credentials).is_set()) return show_panel('login');">Activity</a></li>
           </ul>
           <ul class="nav navbar-nav navbar-right">
             <li><a href="#" onclick="do_logout(); return false;" style="color: white">Log out</a></li>
@@ -172,6 +172,11 @@
       {% include "ssl.html" %}
       </div>
 
+      <div id="panel_access_denied" class="admin_panel">
+        <h3 class="text-danger">Access Denied</h3>
+        <p>You are not an administrator on this system</p>
+      </div>
+
       <hr>
 
       <footer>
@@ -206,6 +211,7 @@
 
         <script src="/admin/assets/jquery.min.js"></script>
         <script src="/admin/assets/bootstrap/js/bootstrap.min.js"></script>
+        <script src="/admin/ui-common/AuthInfo.classic.js"></script>
 
         <script>
 var global_modal_state = null;
@@ -275,6 +281,7 @@ function show_modal_confirm(title, question, verb, yes_callback, cancel_callback
   return false; // handy when called from onclick
 }
 
+var refresh_queue = [];
 var ajax_num_executing_requests = 0;
 function ajax_with_indicator(options) {
   setTimeout("if (ajax_num_executing_requests > 0) $('#ajax_loading_indicator').fadeIn()", 100);
@@ -282,6 +289,50 @@ function ajax_with_indicator(options) {
     ajax_num_executing_requests--;
     if (ajax_num_executing_requests == 0)
       $('#ajax_loading_indicator').stop(true).hide(); // stop() prevents an ongoing fade from causing the thing to be shown again after this call
+  }
+  function handle_token_refresh(jqxhr, old_success, old_error) {
+    var auth = new AuthInfo(api_credentials);
+    if (jqxhr.status != 401 || ! auth.is_refreshable()) {
+      return false;
+    }
+    options.success = old_success;
+    options.error = old_error;
+    refresh_queue.push(options);
+    if (refresh_queue.length > 1) {
+      // wait for ongoing refresh
+      return true;
+    }
+    // handle credentials change from other tabs
+    // (eg. right-click on 'activity')
+    if (! auth.is_same(AuthInfo.recall())) {
+        api_credentials = AuthInfo.recall();
+        ajax_with_indicator(refresh_queue.pop());
+        return true;
+    }
+    api('/oauth-refresh',
+      'POST',
+      { refresh_token: auth.refresh_token },
+      r => {
+        auth.refresh(r);
+        auth.remember({munin:true});
+        api_credentials = auth.as_array();
+        refresh_queue.splice(0, refresh_queue.length).forEach(options => {
+            ajax_with_indicator(options);
+        });
+      },
+      (text, xhr) => {
+        var len = refresh_queue.length;
+        var xmsg = (xhr.status==400 ? `(${text})` : '');
+        refresh_queue = [];
+        if (xhr.status == 403)
+          return;
+        else if (len == 1 && old_error)
+          old_error(text, xhr);
+        else 
+          show_modal_error("Error", `Something went wrong, sorry. ${xmsg}`);
+      }
+    );
+    return true;
   }
   var old_success = options.success;
   var old_error = options.error;
@@ -294,7 +345,9 @@ function ajax_with_indicator(options) {
   };
   options.error = function(jqxhr) {
     hide_loading_indicator();
-    if (!old_error)
+    if (handle_token_refresh(jqxhr, old_success, old_error)) 
+      {/*pass*/}
+    else if (!old_error)
       show_modal_error("Error", "Something went wrong, sorry.")
     else
       old_error(jqxhr.responseText, jqxhr);
@@ -352,9 +405,8 @@ function api(url, method, data, callback, callback_error, headers) {
       // We don't store user credentials in a cookie to avoid the hassle of CSRF
       // attacks. The Authorization header only gets set in our AJAX calls triggered
       // by user actions.
-      xhr.setRequestHeader(
-        'Authorization',
-        'Basic ' + base64encode(api_credentials[0] + ':' + api_credentials[1]));
+      const auth = new AuthInfo(api_credentials);
+      xhr.setRequestHeader('Authorization', auth.authorization_header);
     },
     success: callback,
     error: callback_error || default_error,
@@ -373,12 +425,29 @@ var current_panel = null;
 var switch_back_to_panel = null;
 
 function do_logout() {
-  api_credentials = ["", ""];
-  if (typeof localStorage != 'undefined')
-    localStorage.removeItem("miab-cp-credentials");
-  if (typeof sessionStorage != 'undefined')
-    sessionStorage.removeItem("miab-cp-credentials");
-  show_panel('login');
+  function clear() {
+    AuthInfo.forget();
+    api_credentials = ["", ""];
+    show_panel('login');
+  }            
+  const auth = new AuthInfo(api_credentials);
+  if (auth.is_refreshable()) {
+    $.ajax({
+      url: "/admin/oauth-revoke",
+      method: "POST",
+      cache: false,
+      data: { refresh_token: auth.refresh_token },
+      processData: true,
+      beforeSend: function(xhr) {
+        xhr.setRequestHeader('Authorization', auth.authorization_header);
+      },
+      success: clear,
+      error: clear
+    });
+  }
+  else {
+    clear();
+  }
 }
 
 function show_panel(panelid) {
@@ -399,19 +468,79 @@ function show_panel(panelid) {
   return false; // when called from onclick, cancel navigation
 }
 
-$(function() {
-  // Recall saved user credentials.
-  if (typeof sessionStorage != 'undefined' && sessionStorage.getItem("miab-cp-credentials"))
-    api_credentials = sessionStorage.getItem("miab-cp-credentials").split(":");
-  else if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-credentials"))
-    api_credentials = localStorage.getItem("miab-cp-credentials").split(":");
 
-  // Recall what the user was last looking at.
-  if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel")) {
-    show_panel(localStorage.getItem("miab-cp-lastpanel"));
-  } else {
-    show_panel('login');
+// OAUTH
+
+function get_oauth_login() {
+  // capture oauth related cookies passed to us by the server for a
+  // new login, then delete them
+  var oauthinfo = {
+    user_id: null,
+    token: null,
+    refresh_token: null,
+    expires_in: null,
+    isadmin: null,
+    type: 'Bearer',
+    state_ssi: null   // stay signed in
+  };
+
+  const _cookie_map = {
+    'auth-user':          { key:'user_id',       type:String },
+    'auth-token':         { key:'token',         type:String },
+    'auth-refresh-token': { key:'refresh_token', type:String },
+    'auth-expires-in':    { key:'expires_in',    type:Number },
+    'auth-isadmin':       { key:'isadmin',       type:Number },
+    'auth-state-ssi':     { key:'state_ssi',     type:Number }
+  };
+
+  // load from cookies
+  document.cookie.split('; ').forEach(item => {
+    Object.keys(_cookie_map).forEach( name => {
+      if (item.startsWith(name + '='))
+          oauthinfo[_cookie_map[name].key] = 
+             _cookie_map[name].type(decodeURIComponent(item.split('=')[1]));
+    });
+  });
+  
+  // delete all cookies
+  document.cookie.split('; ').forEach(item => {
+    Object.keys(_cookie_map).forEach( name => {
+      if (item.startsWith(name + '='))
+          document.cookie = name+'=; path=/admin/; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=Strict';
+    });
+  });
+
+  return oauthinfo;
+}
+
+
+
+
+$(function() {
+  // check for return from OAuth login redirection
+  var auth = new AuthInfo(get_oauth_login());
+
+  if (auth.is_valid() && ! auth.is_admin()) {
+    do_logout();
+    show_panel('access_denied');
+    return;
   }
+  else if (auth.is_valid()) {
+    auth.remember({munin:true});
+    api_credentials = auth.as_array();
+  }
+  else {
+    api_credentials = AuthInfo.recall();
+    auth = new AuthInfo();
+  }
+  
+  // Recall what the user was last looking at.
+  var panel = 'login';
+  if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel") && api_credentials[0]) {
+    panel = localStorage.getItem("miab-cp-lastpanel");
+  }
+  if (auth.is_set() && panel=='login') panel='system_status';
+  show_panel(panel);
 })
 
         </script>

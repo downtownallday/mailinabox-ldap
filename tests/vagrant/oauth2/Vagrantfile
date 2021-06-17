@@ -1,0 +1,28 @@
+load '../funcs.rb'
+
+Vagrant.configure("2") do |config|
+
+  config.vm.synced_folder "../../..", "/mailinabox", id: "mailinabox", automount: false
+  config.vm.network "public_network", bridge: "#$default_network_interface"
+    
+  # vanilla install plus extra debug output and other tests-of-the-day
+
+  config.vm.define "oauth2" do |m1|
+    use_preloaded_box m1, "ubuntu/bionic64", ".."
+    m1.vm.provision :shell, :inline => <<-SH
+cd /mailinabox
+source tests/vagrant/globals.sh || exit 1
+export PRIMARY_HOSTNAME=oauth2.local
+#export FEATURE_MUNIN=false
+export FEATURE_NEXTCLOUD=false
+tests/system-setup/vanilla.sh \
+   --enable-mod=dovecot-debug \
+   --enable-mod=roundcube-master \
+   --enable-mod=roundcube-debug \
+   --enable-mod=dovecot-latest-2.3
+echo "EXITCODE: $?"
+SH
+  end
+
+
+end

@@ -5,7 +5,7 @@ Vagrant.configure("2") do |config|
   config.vm.synced_folder "../../..", "/mailinabox", id: "mailinabox", automount: false
   config.vm.network "public_network", bridge: "#$default_network_interface"
   use_preloaded_box config, "ubuntu/bionic64", ".."
-
+  
   # vanilla install
 
   config.vm.define "vanilla" do |m1|

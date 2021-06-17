@@ -38,7 +38,7 @@ export default Vue.component('message-headers-view', {
             }
             this.loading = true;
             this.loading_msg = 'Searching for message with LMTP ID ' + lmtp_id;
-            axios.post('reports/uidata/message-headers', {
+            this.$root.api.post('reports/uidata/message-headers', {
                 lmtp_id,
                 user_id
             }).then(response => {
