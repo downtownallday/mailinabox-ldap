@@ -17,6 +17,7 @@ master_zip_url="https://github.com/roundcube/roundcubemail/archive/master.zip"
 
 # git clone url
 master_git_url="https://github.com/roundcube/roundcubemail.git"
+master_tag="${RC_CLONE_TAG:-master}"
 
 
 install_composer() {
@@ -69,7 +70,7 @@ process_git() {
     pushd $(dirname "$RCM_DIR") >/dev/null
 
     # clone to roundcubemail-master
-    git clone "$master_git_url" "roundcubemail-master"
+    git clone --branch "$master_tag" --depth 1 "$master_git_url" "roundcubemail-master"
 
     # checkout the desired branch/ref
     cd "roundcubemail-master"
@@ -115,5 +116,5 @@ php composer.phar require "kolab/net_ldap3"
 popd >/dev/null
 
 # done
-echo "Roundcube sources from the master branch successfully installed"
+echo "Roundcube sources from $master_tag branch successfully installed"
 
