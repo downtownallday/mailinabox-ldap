@@ -1,8 +1,9 @@
 # -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
-import base64, os, os.path, hmac, json
+import base64, os, os.path, hmac, json, secrets
+from datetime import timedelta
 import logging
 
-from flask import make_response
+from expiringdict import ExpiringDict
 
 import utils
 from mailconfig import validate_login, get_mail_password, get_mail_user_privileges
@@ -18,25 +19,18 @@ log = logging.getLogger(__name__)
 DEFAULT_KEY_PATH   = '/var/lib/mailinabox/api.key'
 DEFAULT_AUTH_REALM = 'Mail-in-a-Box Management Server'
 
-class KeyAuthService:
-	"""Generate an API key for authenticating clients
-
-	Clients must read the key from the key file and send the key with all HTTP
-	requests. The key is passed as the username field in the standard HTTP
-	Basic Auth header.
-	"""
+class AuthService:
 	def __init__(self):
 		self.auth_realm = DEFAULT_AUTH_REALM
-		self.key = self._generate_key()
 		self.key_path = DEFAULT_KEY_PATH
+		self.max_session_duration = timedelta(days=2)
 
-	def write_key(self):
-		"""Write key to file so authorized clients can get the key
+		self.init_system_api_key()
+		self.sessions = ExpiringDict(max_len=64, max_age_seconds=self.max_session_duration.total_seconds())
 
-		The key file is created with mode 0640 so that additional users can be
-		authorized to access the API by granting group/ACL read permissions on
-		the key file.
-		"""
+	def init_system_api_key(self):
+		"""Write an API key to a local file so local processes can use the API"""
+
 		def create_file_with_mode(path, mode):
 			# Based on answer by A-B-B: http://stackoverflow.com/a/15015748
 			old_umask = os.umask(0)
@@ -45,17 +39,20 @@ class KeyAuthService:
 			finally:
 				os.umask(old_umask)
 
+		self.key = secrets.token_hex(32)
+
 		os.makedirs(os.path.dirname(self.key_path), exist_ok=True)
 
 		with create_file_with_mode(self.key_path, 0o640) as key_file:
 			key_file.write(self.key + '\n')
 				
-	def authenticate(self, request, env, oauth_config, leeway=0):
-		"""Test if the client key passed in HTTP Authorization header matches the service key
-		or if the or username/password passed in the header matches an administrator user.
+	def authenticate(self, request, env, oauth_config, leeway=0, login_only=False, logout=False):
+		"""Test if the HTTP Authorization header's username matches the system key, a session key,
+		or if the username/password passed in the header matches a local user.
 		Returns a tuple of the user's email address and list of user privileges (e.g.
 		('my@email', []) or ('my@email', ['admin']); raises a ValueError on login failure.
-		If the user used an API key, the user's email is returned as None."""
+		If the user used the system API key, the user's email is returned as None since
+		this key is not associated with a user."""
 
 		def parse_authorization_header(header):
 			if not header:
@@ -99,20 +96,57 @@ class KeyAuthService:
 			username, password = parse_basic_auth(header['value'])
 			if username in (None, ""):
 				raise ValueError("Authorization header invalid.")
-			elif username == self.key:
+			elif username.strip() == "" and password.strip() == "":
+				raise ValueError("No email address, password, session key, or API key provided.")
+
+			# If user passed the system API key, grant administrative privs. This key
+			# is not associated with a user.
+			elif username == self.key and not login_only:
 				# The user passed the master API key which grants administrative privs.
 				result.update({
 					'user_id': None,
 					'privs': ["admin"]
 				})
+				log.warning('Usage of admin key');
+				return result
 			
+			# If the password corresponds with a session token for the user, grant access for that user.
+			elif password in self.sessions and self.sessions[password]["email"] == username and not login_only:
+				sessionid = password
+				session = self.sessions[sessionid]
+				if session["password_token"] != self.create_user_password_state_token(username, env):
+					# This session is invalid because the user's password/MFA state changed
+					# after the session was created.
+					del self.sessions[sessionid]
+					raise ValueError("Session expired.")
+				if logout:
+					# Clear the session.
+					del self.sessions[sessionid]
+				else:
+					# Re-up the session so that it does not expire.
+					self.sessions[sessionid] = session
+
+			# If no password was given, but a username was given, we're missing some information.
+			elif password.strip() == "":
+				raise ValueError("Enter a password.")
+
 			else:
-				# The user is trying to log in with a username and either a password
-				# (and possibly a MFA token) or a user-specific API key.
-				result.update({
-					'user_id': username,
-					'privs': self.check_user_auth(username, password, request, env)
-				})
+				# The user is trying to log in with a username and a password
+				# (and possibly a MFA token). On failure, an exception is raised.
+				self.check_user_auth(username, password, request, env)
+
+
+			# Get privileges for authorization. This call should never fail because by this
+			# point we know the email address is a valid user --- unless the user has been
+			# deleted after the session was granted. On error the call will return a tuple
+			# of an error message and an HTTP status code.
+			privs = get_mail_user_privileges(username, env)
+			if isinstance(privs, tuple): raise ValueError(privs[0])
+
+			result.update({
+				'user_id': username,
+				'privs': privs
+			})
 		
 		elif header['scheme'] == 'Bearer':
 			try:
@@ -153,63 +187,38 @@ class KeyAuthService:
 		# Validate a user's login email address and password. If MFA is enabled,
 		# check the MFA token in the X-Auth-Token header.
 		#
-		# On success returns a list of privileges (e.g. [] or ['admin']). On login
-		# failure, raises a ValueError with a login error message.
+		# On login failure, raises a ValueError with a login error message. On
+		# success, nothing is returned.
 
-		# Sanity check.
-		if email == "" or pw == "":
-			raise ValueError("Enter an email address and password.")
+		# Authenticate.
+		if not validate_login(email, pw, env):
+			# Login failed.
+			raise ValueError("Incorrect email address or password.")
 
-		# The password might be a user-specific API key. create_user_key raises
-		# a ValueError if the user does not exist.
-		if hmac.compare_digest(self.create_user_key(email, env), pw):
-			# OK.
-			pass
-		else:
-			# Get the hashed password of the user. Raise a ValueError if the
-			# email address does not correspond to a user.
-			if not validate_login(email, pw, env):
-				# Login failed.
-				raise ValueError("Invalid password.")
+		# If MFA is enabled, check that MFA passes.
+		status, hints = validate_auth_mfa(email, request, env)
+		if not status:
+			# Login valid. Hints may have more info.
+			raise ValueError(",".join(hints))
 
-			# If MFA is enabled, check that MFA passes.
-			status, hints = validate_auth_mfa(email, request, env)
-			if not status:
-				# Login valid. Hints may have more info.
-				raise ValueError(",".join(hints))
-
-		# Get privileges for authorization. This call should never fail because by this
-		# point we know the email address is a valid user. But on error the call will
-		# return a tuple of an error message and an HTTP status code.
-		privs = get_mail_user_privileges(email, env)
-		if isinstance(privs, tuple): raise ValueError(privs[0])
-
-		# Return a list of privileges.
-		return privs
-
-	def create_user_key(self, email, env):
-		# Create a user API key, which is a shared secret that we can re-generate from
-		# static information in our database. The shared secret contains the user's
-		# email address, current hashed password, and current MFA state, so that the
-		# key becomes invalid if any of that information changes.
-		#
-		# Use an HMAC to generate the API key using our master API key as a key,
-		# which also means that the API key becomes invalid when our master API key
-		# changes --- i.e. when this process is restarted.
-		#
-		# Raises ValueError via get_mail_password if the user doesn't exist.
-
-		# Construct the HMAC message from the user's email address and current password.
-		msg = b"AUTH:" + email.encode("utf8") + b" " + ";".join(get_mail_password(email, env)).encode("utf8")
+	def create_user_password_state_token(self, email, env):
+		# Create a token that changes if the user's password or MFA options change
+		# so that sessions become invalid if any of that information changes.
+		msg = ';'.join(get_mail_password(email, env)).encode("utf8")
 
 		# Add to the message the current MFA state, which is a list of MFA information.
 		# Turn it into a string stably.
 		msg += b" " + json.dumps(get_hash_mfa_state(email, env), sort_keys=True).encode("utf8")
 
-		# Make the HMAC.
+		# Make a HMAC using the system API key as a hash key.
 		hash_key = self.key.encode('ascii')
 		return hmac.new(hash_key, msg, digestmod="sha256").hexdigest()
 
-	def _generate_key(self):
-		raw_key = os.urandom(32)
-		return base64.b64encode(raw_key).decode('ascii')
+	def create_session_key(self, username, env, type=None):
+		# Create a new session.
+		token = secrets.token_hex(32)
+		self.sessions[token] = {
+			"email": username,
+			"password_token": self.create_user_password_state_token(username, env),
+		}
+		return token

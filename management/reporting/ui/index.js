@@ -33,24 +33,20 @@ const app = {
     data: {
         /* axios */
         api,
-
-        /* whoami */
-        me: null,
     },
 
     mounted: function() {
-        this.getMe();
+        this.ensure_authenticated();
     },
         
     methods: {
-        getMe: function() {
-            this.api.get('me').then(response => {
-                this.me = new Me(response.data);
-            }).catch(error => {
-                this.handleError(error);
-            });
+        ensure_authenticated: function() {
+            this.api.get('reports/uidata/user-list')
+                .catch(error => {
+                    this.handleError(error);
+                });
         },
-
+        
         handleError: function(error) {
             if (error instanceof AuthenticationError) {
                 console.log(error);

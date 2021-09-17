@@ -1,6 +1,9 @@
 #!/usr/local/lib/mailinabox/env/bin/python3
 # -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 #
+# The API can be accessed on the command line, e.g. use `curl` like so:
+#    curl --user $(</var/lib/mailinabox/api.key): http://localhost:10222/mail/users
+#
 # During development, you can start the Mail-in-a-Box control panel
 # by running this script, e.g.:
 #
@@ -26,12 +29,12 @@ import mfa_totp, auth_oauth
 
 env = utils.load_environment()
 
-auth_service = auth.KeyAuthService()
+auth_service = auth.AuthService()
 
 oauth_config = {
 	# client config json: see setup/oauth.sh
 	'client': auth_oauth.get_client_config(env),
-	
+
 	# the key, algorithm and other info needed to verify the oauth
 	# server's signature on a jwt access token
 	'jwt_signature_key': auth_oauth.get_jwt_signature_verification_key(env),
@@ -112,8 +115,10 @@ def authorized_personnel_only_opt(leeway=0, scheme=None):
 							'WWW-Authenticate': f'Bearer realm={auth_service.auth_realm}' 
 						})
 
-				# Write a line in the log recording the failed login
-				log_failed_login(request)
+				# Write a line in the log recording the failed login, unless no authorization header
+				# was given which can happen on an initial request before a 403 response.
+				if "Authorization" in request.headers:
+					log_failed_login(request)
 
 				# Authentication failed.
 				error = str(e)
@@ -200,11 +205,17 @@ def index():
 		oauth=oauth_config["client"],
 	)
 
-@app.route('/me')
-def me():
+# Create a session key by checking the username/password in the Authorization header.
+@app.route('/login', methods=["POST"])
+def login():
 	# Is the caller authorized?
 	try:
-		auth_result = auth_service.authenticate(request, env, oauth_config)
+		auth_result = auth_service.authenticate(
+			request,
+			env,
+			oauth_config,
+			login_only=True
+		)
 		email = auth_result['user_id']
 		privs = auth_result['privs']
 	except ValueError as e:
@@ -213,11 +224,11 @@ def me():
 				"status": "missing-totp-token",
 				"reason": str(e),
 			})
-		elif isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
-			return json_response({
-				"status": "token-expired",
-				"reason": str(e)
-			})
+		# elif isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
+		# 	return json_response({
+		# 		"status": "token-expired",
+		# 		"reason": str(e)
+		# 	})
 		else:
 			# Log the failed login
 			log_failed_login(request)
@@ -226,18 +237,32 @@ def me():
 				"reason": str(e),
 			})
 
+	# Return a new session for the user.
 	resp = {
 		"status": "ok",
 		"email": email,
 		"privileges": privs,
+		"api_key": auth_service.create_session_key(email, env, type='login'),
 	}
 
 	# Is authorized as admin? Return an API key for future use.
-	if "admin" in privs and auth_result['scheme']=='Basic':
-		resp["api_key"] = auth_service.create_user_key(email, env)
+	# if "admin" in privs and auth_result['scheme']=='Basic':
+	# 	resp["api_key"] = auth_service.create_user_key(email, env)
+	
+	app.logger.info("New login session created for {}".format(email))
 
 	# Return.
 	return json_response(resp)
+
+@app.route('/logout', methods=["POST"])
+def logout():
+	try:
+		email, _ = auth_service.authenticate(request, env, oauth_config, logout=True)
+		app.logger.info("{} logged out".format(email))
+	except ValueError as e:
+		pass
+	finally:
+		return json_response({ "status": "ok" })
 
 # MAIL
 
@@ -930,30 +955,11 @@ if __name__ == '__main__':
 		# Turn on Flask debugging.
 		app.debug = True
 
-		# Use a stable-ish master API key so that login sessions don't restart on each run.
-		# Use /etc/machine-id to seed the key with a stable secret, but add something
-		# and hash it to prevent possibly exposing the machine id, using the time so that
-		# the key is not valid indefinitely.
-		import hashlib
-		with open("/etc/machine-id") as f:
-			api_key = f.read()
-		api_key += "|" + str(int(time.time() / (60*60*2)))
-		hasher = hashlib.sha1()
-		hasher.update(api_key.encode("ascii"))
-		auth_service.key = hasher.hexdigest()
-		session_secret_updated()
-
-	if "APIKEY" in os.environ: auth_service.key = os.environ["APIKEY"]
-
 	import encryption_utils
 	encryption_utils.init(auth_service.key)
 
 	if not app.debug:
 		app.logger.addHandler(utils.create_syslog_handler())
-
-	# For testing on the command line, you can use `curl` like so:
-	#    curl --user $(</var/lib/mailinabox/api.key): http://localhost:10222/mail/users
-	auth_service.write_key()
 
 	# For testing in the browser, you can copy the API key that's output to the
 	# debug console and enter that as the username

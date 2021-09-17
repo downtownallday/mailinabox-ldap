@@ -3,31 +3,44 @@ export default class AuthInfo {
         if (!credentials) 
             credentials = AuthInfo.recall();
 
-        if (Array.isArray(credentials)) 
-            this._loadCredentialsArray(credentials);
-
-        else if (credentials instanceof AuthInfo)
+        if (credentials instanceof AuthInfo)
             Object.assign(this, credentials)
 
         else if (credentials) 
-            this._loadOAuth(credentials);
+            this.load_object(credentials);
     }
 
+    /*
+     * get credentials from session storage
+     * returns: credentials object (see AuthInfo.as_object())
+     */
     static recall() {
-        if (typeof sessionStorage != 'undefined' && sessionStorage.getItem("miab-cp-credentials"))
-            return sessionStorage.getItem("miab-cp-credentials").split(":");
-
-        else if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-credentials"))
-            return localStorage.getItem("miab-cp-credentials").split(":");
-
-        return ["", ""];
+        // code is from templates/index.html for "recall saved user
+        // credentials"
+        var cred = null;
+        try {
+            if (typeof sessionStorage != 'undefined' && sessionStorage.getItem("miab-cp-credentials")) {
+                cred = JSON.parse(sessionStorage.getItem("miab-cp-credentials"));
+                // stay signed in
+                cred.state_ssi = false;
+            }
+            else if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-credentials")) {
+                cred = JSON.parse(localStorage.getItem("miab-cp-credentials"));
+                // stay signed in
+                cred.state_ssi = true;
+            }
+        } catch (e) {
+            console.log(e);
+        }
+        return cred;
     }
 
-    _loadOAuth(oauthinfo, refresh) {
+    _load_oauth_credentials_object(oauthinfo, refresh) {
         if (! refresh) this.user_id = oauthinfo.user_id;
         this.access_token = oauthinfo.token;
         this.refresh_token = oauthinfo.refresh_token;
-        this.isadmin = oauthinfo.isadmin;
+        this.privileges = oauthinfo.privileges || [];
+        this.privileges.sort();
         this.scheme = 'Bearer';
         this.expires_in = oauthinfo.expires_in;
         this.expires = oauthinfo.expires;
@@ -36,31 +49,42 @@ export default class AuthInfo {
         if (! refresh) this.state_ssi = oauthinfo.state_ssi;
     }
 
-    _loadCredentialsArray(credentials) {
-        if (!credentials || ! credentials[0]) return;
-        if (credentials.length == 2) {
-            Object.assign(this, {
-                user_id: credentials[0],
-                password: credentials[1],
-                scheme: 'Basic',
-                expires: 0,
-            });
+    _load_api_credentials_object(cred) {
+        Object.assign(this, {
+            user_id: cred.username,
+            password: cred.session_key,
+            privileges: cred.privileges || [],
+            scheme: 'Basic',
+            expires: 0,
+            state_ssi: cred.state_ssi
+        });
+        this.privileges.sort();
+    }
+
+    load_object(credentials) {
+        if (! credentials) {
+            this.scheme = null;
+            this.user_id = null;
+            this.password = null;
+            this.access_token = null;
+            this.refresh_token = null;
+            this.privileges = [];
+            this.expires = null;
+        }
+        else if (credentials.session_key !== undefined) {
+            this._load_api_credentials_object(credentials);
+        }
+        else if (credentials.token !== undefined) {
+            this._load_oauth_credentials_object(credentials);
         }
         else {
-            Object.assign(this, {
-                user_id: credentials[0],
-                access_token: credentials[1],
-                refresh_token: credentials[2],
-                scheme: credentials[3],
-                expires: Number(credentials[4]),
-                state_ssi: Number(credentials[5])
-            });
+            throw new Error("Invalid credentials object");
         }
     }
 
     refresh(oauthinfo) {
         // refresh this class with new tokens from the server
-        this._loadOAuth(oauthinfo, true);
+        this._load_oauth_credentials_object(oauthinfo, true);
     }
 
     is_bearer() {
@@ -93,18 +117,26 @@ export default class AuthInfo {
     }
 
     is_admin() {
-        return this.isadmin ? true : false;
+        var r = false;
+        this.privileges.forEach(priv => {
+            if (priv === 'admin') r = true;
+        });
+        return r;
     }
 
     is_same(credentials) {
         const y = new AuthInfo(credentials);
-        if (! y.is_set()) return true;
         if (this.scheme != y.scheme) return false;
         if (this.user_id != y.user_id) return false;
         if (this.is_bearer())
             return this.access_token == y.access_token;
         else
             return this.password == y.password;
+        if (this.privileges.length != y.privileges.length)
+            return false;
+        for (var i=0; i<this.privileges.length; i++) {
+            if (this.privileges[i] != y.privileges[i]) return false;
+        }
     }
 
     get authorization_header() {
@@ -115,47 +147,59 @@ export default class AuthInfo {
             return `${this.scheme} ${this.access_token}`;
     }
 
-    as_array() {
-        if (this.scheme == 'Basic') {
-            return [
-                this.user_id || "",
-                this.password || ""
-            ];
+    as_object() {
+        if (this.is_bearer()) {
+            return {
+                user_id: this.user_id,
+                token: this.access_token,
+                refresh_token: this.refresh_token,
+                scheme: this.scheme,
+                expires: this.expires,
+                privileges: this.privileges,
+                state_ssi: this.state_ssi
+            };
         }
-        else if (this.scheme == 'Bearer') {
-            return [
-                this.user_id,
-                this.access_token,
-                this.refresh_token,
-                this.scheme,
-                this.expires,
-                this.state_ssi
-            ];
+        else if (this.user_id) {
+            return {
+                username: this.user_id,
+                session_key: this.password,
+                state_ssi: this.state_ssi
+            };
         }
         else {
-            throw new Error('Not supported');
+            return null;
         }
     }
 
     remember(opts) {
-        var credentials = this.as_array();
+        var credentials = this.as_object();
+        if (! credentials) {
+            AuthInfo.forget();
+            return null;
+        }
 
         // Remember the credentials
         if (typeof localStorage != 'undefined' && 
-            typeof sessionStorage != 'undefined') 
+            typeof sessionStorage != 'undefined')
         {
             if (this.state_ssi) {
                 // stay signed in
-                localStorage
-                    .setItem("miab-cp-credentials", credentials.join(":"));
-                sessionStorage
-                    .removeItem("miab-cp-credentials");
+                localStorage.setItem(
+                    "miab-cp-credentials",
+                    JSON.stringify(credentials)
+                );
+                sessionStorage.removeItem(
+                    "miab-cp-credentials"
+                );
             }
             else {
-                sessionStorage
-                    .setItem("miab-cp-credentials", credentials.join(":"));
-                localStorage
-                    .removeItem("miab-cp-credentials");
+                sessionStorage.setItem(
+                    "miab-cp-credentials",
+                    JSON.stringify(credentials)
+                );
+                localStorage.removeItem(
+                    "miab-cp-credentials"
+                );
             }
         }
 
@@ -166,6 +210,8 @@ export default class AuthInfo {
         if (opts && opts.munin) {
             document.cookie = `auth-bearer=${this.access_token}; Path=/admin/munin/; Secure; SameSite=Strict`;
         }
+        
+        return credentials;
     }
 
     static forget() {

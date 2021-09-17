@@ -43,16 +43,30 @@ auth_service = None
 # essential session-related functions
 #
 
-def _get_api_key_hash(user_id):
-	# use a minimal hash function for this. we don't need a secure one
-	# because the session cookie is signed, so the hash is tamper
-	# resistant. we just need to know whether the api_key changed
-	# without revealing what it is in the unencrypted cookie.
+def _get_user_password_state_hash(user_id):
+	# Obtain and add salt to the password state token, then use a
+	# minimal hash function to re-hash. The result will end up in the
+	# session cookie, which is a signed but unencrypted object. We
+	# don't use a secure hashing function here because the session
+	# cookie is tamper resistant and collissions are highly highly
+	# unlikely (a change in a password resulting in the same hash). We
+	# just need to know whether the password state changed without
+	# revealing anything about the password so the session can be
+	# invalidated.
 	#
+	# note: salt is random text that's currently regenerated anytime
+	# setup/oauth.sh is run or the salt file is removed and the oauth
+	# daemon restarted
 	salt = current_app.session_interface.salt
-	api_key = auth_service.create_user_key(user_id, env)
-	plaintext = api_key + salt
-	return ( api_key, hashlib.md5(plaintext.encode('utf-8')).hexdigest() )
+	user_password_state = auth_service.create_user_password_state_token(
+		user_id,
+		env
+	)
+	plaintext = user_password_state + salt
+	return (
+		user_password_state,
+		hashlib.md5(plaintext.encode('utf-8')).hexdigest()
+	)
 
 
 def get_session_user():
@@ -70,17 +84,22 @@ def get_session_user():
 		'maildrop',
 		'mailaccess'
 	])
-	if not user: return None
-	
+	if not user: return None	
 	user['user_id'] = user['maildrop'][0]
-	if 'api_key_hash' in session:
-		# invalidate the session if the user api key changed
-		api_key, api_key_hash = _get_api_key_hash(user_id)
-		if session['api_key_hash'] != api_key_hash:
-			session.clear()
-			return None
-		# if valid, return the api_key in the user object
-		user['api_key'] = api_key
+
+	# invalidate the session if the user password state changed
+	if 'user_password_state_hash' not in session:
+		session.clear()
+		return None
+	
+	user_password_state, user_password_state_hash = \
+		_get_user_password_state_hash(user_id)
+	if session['user_password_state_hash'] != user_password_state_hash:
+		session.clear()
+		return None
+	
+	# # if valid, return the user_password_state in the user object
+	# user['user_password_state'] = user_password_state
 	return user
 
 
@@ -95,15 +114,17 @@ def set_session_user(user_id, stay_signed_in):
 
 	
 def update_session():
-	# store a hash of the user api key in the session. don't store the
-	# api_key itself because the session cookie is not encrypted, only
-	# signed. it's sufficient to know if the api key changed and deem
-	# the session invalid if that happened. this will happen, for
-	# instance, if the user's password or MFA config was changed by an
-	# admin
+	# store a hash of the user password state token in the
+	# session. don't store the user_password_state itself because the
+	# session cookie is not encrypted, only signed. it's sufficient to
+	# know if the password state changed and deem the session invalid
+	# if that happened. this will happen, for instance, if the user's
+	# password or MFA config was changed by an admin
 	#
-	api_key, api_key_hash = _get_api_key_hash(session['user_id'])
-	session['api_key_hash'] = api_key_hash
+	user_password_state, user_password_state_hash = \
+		_get_user_password_state_hash(session['user_id'])
+	session['user_password_state_hash'] = \
+		user_password_state_hash
 	
 	
 def logout_session_user():

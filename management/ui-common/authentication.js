@@ -2,17 +2,52 @@ import { AuthenticationError } from './exceptions.js';
 import AuthInfo from './AuthInfo.js';
 
 export class Me {
-    /* construct with return value from GET /me */
+    /* 
+     * construct with return value from any of:
+     *   POST /auth/user/login
+     *   GET /auth/user/me?mfa_state=[y/n]
+     *
+     * This class should only be used by OAuth server client
+     * components (which currently is part of the mail server, but
+     * doesn't have to be). These routes are currently /auth/user/ and
+     * /auth/oauth/.
+     *
+     */
     constructor(me) {
+        /*
+         * @see daemon_sessions.py:get_session_me()
+         *
+         * me: {
+         *   server_hostname: String,
+         *   user_id: String,
+         *   email: String,
+         *   name: String,
+         *   enabled_mfa: [ // iff ?mfa_state=y
+         *      {
+         *        type: "totp",
+         *        label: String,
+         *      },
+         *   ],
+         *   new_mfa: {  // iff ?mfa_state=y
+         *      totp: {
+         *        qr_code_base64: String
+         *      }
+         *   }
+         * }
+         */
         Object.assign(this, me);
     }
 
     is_authenticated() {
-        return this.api_key || this.user_id;
+        return this.user_id ? true : false;
     }
 
     get_email() {
-        return this.user_email || this.user_id;
+        return this.email;
+    }
+
+    get_user_id() {
+        return this.user_id;
     }
 };
 
@@ -42,7 +77,7 @@ export function init_oauth_api(inst) {
                 //
                 //  { status:"error", reason:"..." }
                 //
-                throw new AuthenticationError(error, error.response.data.status.reason);
+                throw new AuthenticationError(error, error.response.data.reason);
             }
             else if (error.response.status == 401) {
                 throw new AuthenticationError(error, "Login required");
@@ -59,6 +94,10 @@ export function init_miab_api(inst) {
     inst.interceptors.request.use(request => {
         const auth = new AuthInfo();
         request.headers.authorization = auth.authorization_header;
+        // prevent daemon.py's @authorized_personnel_only from sending
+        // 401 responses, which cause the browser to pop up a
+        // credentials dialog box
+        request.headers['X-Requested-With'] = 'XMLHttpRequest';
         return request;
     });
 
@@ -71,8 +110,9 @@ export function init_miab_api(inst) {
             if (response.data && response.data.status == 'invalid')
             {
                 var url = axios_url(response.config);
-                if (url == '/admin/me') {
-                    // non-session/admin login
+                if (url == '/admin/login') {
+                    // non-flask-session/admin login, which always
+                    // returns 200, even for failed logins
                     throw new AuthenticationError(
                         null,
                         response.data.reason,
@@ -107,7 +147,7 @@ export function init_miab_api(inst) {
                 //
                 //  { status:"error", reason:"..." }
                 //
-                throw new AuthenticationError(error, error.response.data.status.reason);
+                throw new AuthenticationError(error, error.response.data.reason);
             }
             else if (error.response.status == 403) {
                     throw new AuthenticationError(error, "Login required");

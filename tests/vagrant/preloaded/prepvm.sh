@@ -68,6 +68,9 @@ install_packages() {
 
         # don't install slapd - it requires user input
         pkgs="$(sed 's/slapd//g' <<< "$pkgs")"
+
+        # ignore packages that are shell variables (${NAME})
+        pkgs="$(sed 's/^\$\{[^\}]*\}$//g' <<< "$pkgs")"
         
         if [ ! -z "$pkgs" ]; then
             echo "install: $pkgs"

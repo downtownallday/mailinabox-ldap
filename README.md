@@ -1,3 +1,5 @@
+[![build](https://github.com/downtownallday/mailinabox-ldap/actions/workflows/commit-tests.yml/badge.svg)](https://github.com/downtownallday/mailinabox-ldap/actions)
+
 # Mail-in-a-Box LDAP
 This is a version of [Mail-in-a-Box](https://mailinabox.email) with LDAP used as the user account database instead of sqlite.
 
@@ -34,8 +36,6 @@ Copy the file `setup/mods.available/remote-nextcloud-use-miab.sh` to the Nextclo
 **Additional Firewall Rule**
 
 On MiaB-LDAP, a one-time change must be applied manually to allow the remote Nextcloud to query the LDAP server because the default MiaB-LDAP installation doesn't allow any remote LDAP access. As root, run the following: `ufw allow proto tcp from $ip to any port ldaps`, where $ip is the ip-address of your Nextcloud server.
-
-It also supports static website hosting since the box is serving HTTPS anyway. (To serve a website for your domains elsewhere, just add a custom DNS "A" record in you Mail-in-a-Box's control panel to point domains to another server.)
 
 ## Under-the-Hood
 

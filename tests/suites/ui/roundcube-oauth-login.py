@@ -50,9 +50,9 @@ def wait_for_inbox(d):
 def rcm_logout(d):
     ''' logout of roundcube '''
     d.start("Logout of roundcube")
-    el = d.find_el('a.logout')
-    el = el.click() \
-           .wait_for_el('#rcmloginoauth')
+    el = d.wait_for_el('a.logout', must_be_enabled=True)
+    el.click()
+    d.wait_for_el('#rcmloginoauth')
 
 def enable_totp(d):
     '''browser must be at the profile page (already logged in)

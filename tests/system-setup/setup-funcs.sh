@@ -69,7 +69,10 @@ dump_conf_files() {
 #
 init_test_system() {
     H2 "Update /etc/hosts"
-    set_system_hostname || die "Could not set hostname"
+    if ! set_system_hostname; then
+        dump_file "/etc/hosts"
+        die "Could not set hostname"
+    fi
 
     # update system time
     H2 "Set system time"
@@ -89,7 +92,7 @@ init_test_system() {
         wait_for_apt
         apt-get upgrade -qq || die "apt-get upgrade failed!"
     fi
-
+    
     # install avahi if the system dns domain is .local - note that
     # /bin/dnsdomainname returns empty string at this point
     case "$PRIMARY_HOSTNAME" in

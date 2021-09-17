@@ -62,6 +62,9 @@
 	    ol li {
 	       margin-bottom: 1em;
 	    }
+
+            .if-logged-in { display: none; }
+            .if-logged-in-admin { display: none; }
         </style>
         <link rel="stylesheet" href="/admin/assets/bootstrap/css/bootstrap-theme.min.css">
     </head>
@@ -83,7 +86,7 @@
         </div>
         <div class="navbar-collapse collapse">
           <ul class="nav navbar-nav">
-            <li class="dropdown">
+            <li class="dropdown if-logged-in-admin">
               <a href="#" class="dropdown-toggle" data-toggle="dropdown">System <b class="caret"></b></a>
               <ul class="dropdown-menu">
                 <li><a href="#system_status" onclick="return show_panel(this);">Status Checks</a></li>
@@ -97,7 +100,8 @@
                 <li><a href="#postgrey_whitelist" onclick="return show_panel(this);">Postgrey Whitelist</a></li>
               </ul>
             </li>
-            <li class="dropdown">
+            <li><a href="#mail-guide" onclick="return show_panel(this);" class="if-logged-in-not-admin">Mail</a></li>
+            <li class="dropdown if-logged-in-admin">
               <a href="#" class="dropdown-toggle" data-toggle="dropdown">Mail &amp; Users <b class="caret"></b></a>
               <ul class="dropdown-menu">
                 <li><a href="#mail-guide" onclick="return show_panel(this);">Instructions</a></li>
@@ -108,18 +112,22 @@
                 <li><a href="#mfa" onclick="return show_panel(this);">Two-Factor Authentication</a></li>
               </ul>
             </li>
-            <li><a href="#sync_guide" onclick="return show_panel(this);">Contacts/Calendar</a></li>
-            <li><a href="#web" onclick="return show_panel(this);">Web</a></li>
-            <li><a href="/admin/reports/" onclick="if (! new AuthInfo(api_credentials).is_set()) return show_panel('login');">Activity</a></li>
+            <li><a href="#sync_guide" onclick="return show_panel(this);" class="if-logged-in">Contacts/Calendar</a></li>
+            <li><a href="#web" onclick="return show_panel(this);" class="if-logged-in-admin">Web</a></li>
+            <li><a href="/admin/reports/" class="if-logged-in-admin">Activity</a></li> <!-- onclick="if (! new AuthInfo(api_credentials).is_set()) return show_panel('login');" -->
           </ul>
           <ul class="nav navbar-nav navbar-right">
-            <li><a href="#" onclick="do_logout(); return false;" style="color: white">Log out</a></li>
+            <li class="if-logged-in"><a href="#" onclick="do_logout(); return false;" style="color: white">Log out</a></li>
           </ul>
         </div><!--/.navbar-collapse -->
       </div>
     </div>
 
     <div class="container">
+      <div id="panel_welcome" class="admin_panel">
+      {% include "welcome.html" %}
+      </div>
+
       <div id="panel_system_status" class="admin_panel">
       {% include "system-status.html" %}
       </div>
@@ -304,18 +312,18 @@ function ajax_with_indicator(options) {
     }
     // handle credentials change from other tabs
     // (eg. right-click on 'activity')
-    if (! auth.is_same(AuthInfo.recall())) {
-        api_credentials = AuthInfo.recall();
-        ajax_with_indicator(refresh_queue.pop());
-        return true;
+    var recalled_auth = AuthInfo.recall();
+    if (new AuthInfo(recalled_auth).is_set() && ! auth.is_same(recalled_auth)) {
+      api_credentials = recalled_auth;
+      ajax_with_indicator(refresh_queue.pop());
+      return true;
     }
     api('/oauth-refresh',
       'POST',
       { refresh_token: auth.refresh_token },
       r => {
         auth.refresh(r);
-        auth.remember({munin:true});
-        api_credentials = auth.as_array();
+        api_credentials = auth.remember({munin:true});
         refresh_queue.splice(0, refresh_queue.length).forEach(options => {
             ajax_with_indicator(options);
         });
@@ -357,7 +365,7 @@ function ajax_with_indicator(options) {
   return false; // handy when called from onclick
 }
 
-var api_credentials = ["", ""];
+var api_credentials = null;
 function api(url, method, data, callback, callback_error, headers) {
   // from http://www.webtoolkit.info/javascript-base64.html
   function base64encode(input) {
@@ -427,8 +435,10 @@ var switch_back_to_panel = null;
 function do_logout() {
   function clear() {
     AuthInfo.forget();
-    api_credentials = ["", ""];
+    api_credentials = null;
     show_panel('login');
+    // Reset menus.
+    show_hide_menus();
   }            
   const auth = new AuthInfo(api_credentials);
   if (auth.is_refreshable()) {
@@ -446,7 +456,8 @@ function do_logout() {
     });
   }
   else {
-    clear();
+    // Clear the session from the backend.
+    api("/logout", "POST", undefined, clear, clear);
   }
 }
 
@@ -479,7 +490,7 @@ function get_oauth_login() {
     token: null,
     refresh_token: null,
     expires_in: null,
-    isadmin: null,
+    privileges: [],
     type: 'Bearer',
     state_ssi: null   // stay signed in
   };
@@ -489,7 +500,7 @@ function get_oauth_login() {
     'auth-token':         { key:'token',         type:String },
     'auth-refresh-token': { key:'refresh_token', type:String },
     'auth-expires-in':    { key:'expires_in',    type:Number },
-    'auth-isadmin':       { key:'isadmin',       type:Number },
+    'auth-privileges':    { key:'privileges',    type:v => v.split(',') },
     'auth-state-ssi':     { key:'state_ssi',     type:Number }
   };
 
@@ -527,7 +538,7 @@ $(function() {
   }
   else if (auth.is_valid()) {
     auth.remember({munin:true});
-    api_credentials = auth.as_array();
+    api_credentials = auth.as_object();
   }
   else {
     api_credentials = AuthInfo.recall();
@@ -535,12 +546,15 @@ $(function() {
   }
   
   // Recall what the user was last looking at.
-  var panel = 'login';
-  if (typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel") && api_credentials[0]) {
+  var panel = api_credentials ? 'welcome' : 'login';
+  if (api_credentials != null && typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel")) {
     panel = localStorage.getItem("miab-cp-lastpanel");
-  }
-  if (auth.is_set() && panel=='login') panel='system_status';
+  }    
+  if (auth.is_set() && panel=='login') panel='welcome';
   show_panel(panel);
+  
+  // Toggle menu state.
+  show_hide_menus();
 })
 
         </script>

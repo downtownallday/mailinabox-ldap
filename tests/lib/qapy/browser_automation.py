@@ -186,6 +186,7 @@ class TestDriver(object):
         try:
             if not os.path.exists(os.path.dirname(where)):
                 os.mkdir(os.path.dirname(where))
+            self.say_verbose("save screenshot: '%s'", where)
             self.driver.save_screenshot(where)
         except Exception as e:
             if not ignore_errors:
@@ -197,10 +198,18 @@ class TestDriver(object):
     def wait_for_id(self, id, secs=5, throws=True):
         return self.wait_for_el('#' + id, secs=secs, throws=throws)
 
-    def wait_for_el(self, css_selector, secs=5, throws=True):
-        self.say_verbose("wait for selector '%s'", css_selector)
+    def wait_for_el(self, css_selector, secs=5, throws=True, must_be_enabled=False):
+        if not must_be_enabled:
+            self.say_verbose("wait for selector '%s' (%ss)",
+                             css_selector, secs)
+        else:
+            self.say_verbose("wait for selector '%s' to be enabled (%ss)",
+                             css_selector, secs)
         def test_fn(driver):
-            return driver.find_element(By.CSS_SELECTOR, css_selector)
+            found_el = driver.find_element(By.CSS_SELECTOR, css_selector)
+            if must_be_enabled and not found_el.is_enabled():
+                raise NoSuchElementException()
+            return found_el
         wait = WebDriverWait(self.driver, secs, ignored_exceptions= (
             NoSuchElementException
         ))

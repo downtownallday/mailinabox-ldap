@@ -29,15 +29,17 @@ log = logging.getLogger(__name__)
 
 
 class MyJWTClaims(jose.JWTClaims):
-	def has_priv(self, name):
+	def get_privs(self):
 		privs = self.get('privs')
 		if not privs:
-			return False
+			return []
 		if isinstance(privs, list):
-			privs_list = privs
+			return privs
 		else:
-			privs_list = [ privs ]
-		return name in privs_list
+			return [ privs ]
+		
+	def has_priv(self, name):
+		return name in self.get_privs()
 
 	def get_user_id(self):
 		return self.get('sub')
@@ -243,7 +245,7 @@ def create_authorization_response(oauth_config, code, state):
 	setcookie("auth-token", json['access_token'])
 	setcookie("auth-refresh-token", encryption_utils.encrypt(json['refresh_token']))
 	setcookie("auth-expires-in", str(json['expires_in'])),
-	setcookie("auth-isadmin", "1" if claims.has_priv('admin') else "0")
+	setcookie("auth-privileges", ",".join(claims.get_privs()))
 	setcookie("auth-state-ssi", str(state['ssi']))
 	return response
 
@@ -293,7 +295,7 @@ def create_refresh_response(oauth_config, request, s_refresh_token):
 		"token": json['access_token'],
 		"refresh_token": encryption_utils.encrypt(json['refresh_token']),
 		"expires_in": json['expires_in'],
-		"isadmin": 1 if claims.has_priv('admin') else 0
+		"privileges": claims.get_privs()
 	})
 
 
