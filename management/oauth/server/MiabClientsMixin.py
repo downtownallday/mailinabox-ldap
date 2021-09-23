@@ -11,6 +11,10 @@ import time
 from .Storage import Storage
 from .AuthClient import AuthClient
 
+from .errors import (
+	InsufficientPrivilegeError
+)
+
 log = logging.getLogger(__name__)
 
 class ParseError(Exception):
@@ -108,7 +112,7 @@ class MiabClientsMixin(Storage):
 					# access tokens are identical since all claims are
 					# identical, including 'iat' which is accurate
 					# only to the second
-					'jti': str(time.time())
+					'jti': str(time.time()) # eg: "1632396409.6227248"
 				}
 
 			# create the AuthClient instance
@@ -218,6 +222,67 @@ class MiabClientsMixin(Storage):
 
 				jwt_private_claims_fn = jwt_private_claims
 			)
+
+		elif client_id == "miabldap-cli":
+			#
+			# private claims function providing additional JWT claims
+			# required by the console
+			#
+			def jwt_private_claims(client, grant_type, user, scope):
+				return {
+					'privs': user['mailaccess']
+				}
+
+			def check_user_restrictions_fn(user):
+				# only allow admin users
+				if user is None:
+					return None
+				if 'admin' not in user['mailaccess']:
+					log.warning(
+						'Authorization of user restricted - not an admin',
+						{ "username": user['user_id'],
+						  "client": 'miabldap-cli' }
+					)
+					raise InsufficientPrivilegeError()
+				else:
+					return user
+
+			# create the AuthClient instance
+			inst = AuthClient(
+				client_id,
+
+				# name
+				'Mail-in-a-Box CLI',
+
+				# client password
+				'miabldap-cli',
+
+				# scopes supported
+				[ 
+					'introspect',
+					'miabldap-console'
+				],
+
+				# valid redirect uri prefixes
+				None,
+
+				grant_types = [
+					"password"
+				],
+
+				token_policy = {
+					'OAUTH2_TOKEN_EXPIRES_IN': {
+						# access_token lifetime per grant_type
+						'password': 60 * (5 if self.debug else 60),
+					},
+					'OAUTH2_REFRESH_TOKEN_GENERATOR': False,
+					'OAUTH2_JWT_TOKENS': True,
+				},
+
+				check_user_restrictions_fn = check_user_restrictions_fn,
+				jwt_private_claims_fn = jwt_private_claims
+			)
+
 
 		if inst:
 			self.clients[client_id] = inst

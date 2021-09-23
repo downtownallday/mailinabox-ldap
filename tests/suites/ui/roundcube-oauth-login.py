@@ -45,14 +45,16 @@ def rcm_login_via_grant_access(d):
 
 def wait_for_inbox(d):
     d.start("Wait for INBOX")
-    d.wait_for_el('a.logout')
+    d.wait_for_el('a.logout', must_be_enabled=True, secs=10)
 
 def rcm_logout(d):
     ''' logout of roundcube '''
     d.start("Logout of roundcube")
     el = d.wait_for_el('a.logout', must_be_enabled=True)
     el.click()
-    d.wait_for_el('#rcmloginoauth')
+    if d.wait_for_el('#rcmloginoauth', throws=False) is None:
+        el.click()
+        d.wait_for_el('#rcmloginoauth')
 
 def enable_totp(d):
     '''browser must be at the profile page (already logged in)

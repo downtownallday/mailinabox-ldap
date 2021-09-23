@@ -36,6 +36,7 @@ import sqlite3
 from .Token import Token
 from .MyAuthorizationCodeGrant import MyAuthorizationCodeGrant
 from .MyRefreshTokenGrant import MyRefreshTokenGrant
+from .MyPasswordGrant import MyPasswordGrant
 from .server_globals import G
 
 log = logging.getLogger(__name__)
@@ -149,7 +150,10 @@ def save_token(token, request):
 			G.storage.save_token(None, Token(d))
 
 		elif request.grant_type == 'refresh_token':
-				G.storage.save_token(request.credential, Token(d))
+			G.storage.save_token(request.credential, Token(d))
+
+		elif request.grant_type == 'password':
+			G.storage.save_token(None, Token(d))
 
 		else:
 			log.info(
@@ -160,8 +164,12 @@ def save_token(token, request):
 
 	except sqlite3.IntegrityError as e:
 		# duplicate token
-		log.warning('unable to save token: %s', str(e), log_opt);
-		raise InvalidRequestError() from e
+		# ignore if there is no refresh_token
+		if d['refresh_token'] is None:
+			log.warning('ignoring: unable to save token: %s', str(e), log_opt)
+		else:
+			log.warning('unable to save token: %s', str(e), log_opt);
+			raise InvalidRequestError("Duplicate request - more time required before new token can be issued") from e
 
 	except Exception as e:
 		log.error('unable to save token', log_opt, exc_info=e)
@@ -254,6 +262,7 @@ class MyAuthorizationServer(AuthorizationServer):
 		# supported grants
 		self.register_grant(MyAuthorizationCodeGrant, [CodeChallenge(required=True), MyOpenIDCode()])
 		self.register_grant(MyRefreshTokenGrant)
+		self.register_grant(MyPasswordGrant)
 	
 		# support revocation
 		self.register_endpoint(MyRevocationEndpoint)

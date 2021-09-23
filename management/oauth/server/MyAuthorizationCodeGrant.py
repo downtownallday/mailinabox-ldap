@@ -12,7 +12,7 @@ class MyAuthorizationCodeGrant(grants.AuthorizationCodeGrant):
 	TOKEN_ENDPOINT_AUTH_METHODS = [
 		'client_secret_basic',
 		'client_secret_post',
-		'none',
+		# 'none',
 	]
 
 	def save_authorization_code(self, code, request):
@@ -45,4 +45,8 @@ class MyAuthorizationCodeGrant(grants.AuthorizationCodeGrant):
 
 	def authenticate_user(self, authorization_code):
 		''' authorization_code: an AuthCode object '''
-		return G.storage.query_user(authorization_code.user_id)
+		user = G.storage.query_user(authorization_code.user_id)
+		if user:
+			client = G.storage.query_client(authorization_code.client_id)
+			user = client.check_user_restrictions(user)
+		return user

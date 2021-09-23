@@ -11,6 +11,8 @@ set +eu
 
 MIAB_DIR=".."
 PYMAIL="./test_mail.py"
+MGMT_CLI="../management/cli.py"
+MGMT_ACCESS_TOKEN_CLI="../management/access_token.py"
 
 
 # options

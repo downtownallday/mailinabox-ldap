@@ -40,9 +40,10 @@ def send_oauth_ui_file(filename):
 # Our oauth Storage class for persisting and querying users, tokens,
 # clients, etc
 class MyStorage(SqliteStorage, MiabClientsMixin, MiabUsersMixin):
-	def __init__(self, env, db_path, debug=False):
+	def __init__(self, env, db_path, auth_service, debug=False):
 		self.env = env
-		self.debug = debug
+		self.auth_service = auth_service
+		self.debug = debug		
 		super(MyStorage, self).__init__(db_path)
 
 
@@ -68,6 +69,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 	storage = MyStorage(
 		env,
 		os.path.join(STORAGE_OAUTH_ROOT, "authserver.sqlite"),
+		auth_service,
 		app.debug
 	)
 
@@ -108,7 +110,7 @@ def add_oauth2(app, env, auth_service, log_failed_login):
 		try:
 			grant = authorization.validate_consent_request(end_user=user)
 		except OAuth2Error as error:
-			return error.error
+			return (error.error, 400)
 
 		# validate end-user consent
 		consent = request.form.get('consent', 'false')

@@ -49,7 +49,8 @@ if [ ! -e "$CLIENT_CONFIG" ]; then
    "oauth_login_url": "https://${PRIMARY_HOSTNAME}/auth/oauth/authorize",
    "oauth_token_url": "http://localhost:10222/oauth/token",
    "oauth_revoke_url": "http://localhost:10222/oauth/revoke",
-   "authorize_url": "https://${PRIMARY_HOSTNAME}/admin/oauth-authorization"
+   "authorize_url": "https://${PRIMARY_HOSTNAME}/admin/oauth-authorization",
+   "allow_api_key_login": false
 }
 EOF
     chmod 600 "$CLIENT_CONFIG"

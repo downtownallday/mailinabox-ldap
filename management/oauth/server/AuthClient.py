@@ -39,7 +39,7 @@ class AuthClient(ClientMixin):
 	'''
 
 	
-	def __init__(self, id, name, secret, supported_scopes, redirect_uri_prefix, perms=None, token_policy=None, jwt_private_claims_fn=None):
+	def __init__(self, id, name, secret, supported_scopes, redirect_uri_prefix, grant_types=[ "authorization_code","refresh_token" ], perms=None, token_policy=None, jwt_private_claims_fn=None, check_user_restrictions_fn=None):
 
 		self.client_id = id
 		self.client_name = name
@@ -47,6 +47,8 @@ class AuthClient(ClientMixin):
 		self.supported_scopes = supported_scopes
 		self.redirect_uri_prefix = redirect_uri_prefix
 		self.default_redirect_uri = redirect_uri_prefix
+		self.grant_types = grant_types
+		self.check_user_restrictions_fn = check_user_restrictions_fn
 
 		self.perms = perms or []
 		self.token_policy = {
@@ -92,9 +94,7 @@ class AuthClient(ClientMixin):
 		return ( pw == self.client_secret )
 
 	def check_grant_type(self, grant_type):
-		if grant_type == "authorization_code":
-			return True
-		if grant_type == "refresh_token":
+		if grant_type in self.grant_types:
 			return True
 		log.warning(
 			"unhandled grant_type: %s" % grant_type,
@@ -141,6 +141,13 @@ class AuthClient(ClientMixin):
 			)
 			return False
 		return True
+
+	def check_user_restrictions(self, user):
+		if user is None or not self.check_user_restrictions_fn:
+			# ok
+			return user
+		user = self.check_user_restrictions_fn(user)
+		return user
 
 	def get_allowed_scope(self, scope):
 		''' return a subset of scopes in `scope` that are supported

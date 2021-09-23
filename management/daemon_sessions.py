@@ -239,8 +239,9 @@ class MySecureCookieSessionInterface(sessions.SecureCookieSessionInterface):
 
 
 def add_sessions(app, miabenv, miab_auth_service, log_failed_login):
-	'''call this function to add Flask sessions, plus endpoints for login
-	and logout
+	'''call this function to add Flask sessions
+
+	see daemon_user.py for endpoints for login and logout
 
 	`app` is a Flask instance
 	`miabenv` is the Mail-in-a-Box environment (read-only)

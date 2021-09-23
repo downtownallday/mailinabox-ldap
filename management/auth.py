@@ -57,13 +57,14 @@ class AuthService:
 		def parse_authorization_header(header):
 			if not header:
 				raise ValueError("No authorization header provided.")
-			if " " not in header:
+			try:
+				scheme, value = header.split(maxsplit=1)
+				return {
+					'scheme': scheme,
+					'value': value
+				}
+			except ValueError:
 				raise ValueError("Authorization header invalid.")
-			scheme, value = header.split(maxsplit=1)
-			return {
-				'scheme': scheme,
-				'value': value
-			}
 
 		def decode(s):
 			return base64.b64decode(s.encode('ascii')).decode('ascii')
@@ -96,59 +97,28 @@ class AuthService:
 			username, password = parse_basic_auth(header['value'])
 			if username in (None, ""):
 				raise ValueError("Authorization header invalid.")
-			elif username.strip() == "" and password.strip() == "":
-				raise ValueError("No email address, password, session key, or API key provided.")
 
 			# If user passed the system API key, grant administrative privs. This key
 			# is not associated with a user.
 			elif username == self.key and not login_only:
 				# The user passed the master API key which grants administrative privs.
+				if 'allow_api_key_login' not in oauth_config['client'] or not oauth_config['client']['allow_api_key_login']:
+					log.warning("system api key login is disabled")
+					raise ValueError("system api key login is disabled")
+				
 				result.update({
 					'user_id': None,
 					'privs': ["admin"]
 				})
-				log.warning('Usage of admin key');
+				log.warning('Usage of admin key')
 				return result
 			
-			# If the password corresponds with a session token for the user, grant access for that user.
-			elif password in self.sessions and self.sessions[password]["email"] == username and not login_only:
-				sessionid = password
-				session = self.sessions[sessionid]
-				if session["password_token"] != self.create_user_password_state_token(username, env):
-					# This session is invalid because the user's password/MFA state changed
-					# after the session was created.
-					del self.sessions[sessionid]
-					raise ValueError("Session expired.")
-				if logout:
-					# Clear the session.
-					del self.sessions[sessionid]
-				else:
-					# Re-up the session so that it does not expire.
-					self.sessions[sessionid] = session
-
-			# If no password was given, but a username was given, we're missing some information.
-			elif password.strip() == "":
-				raise ValueError("Enter a password.")
-
 			else:
-				# The user is trying to log in with a username and a password
-				# (and possibly a MFA token). On failure, an exception is raised.
-				self.check_user_auth(username, password, request, env)
+				log.warning("Invalid authentication: basic auth not permitted")
+				raise ValueError("Unsupported authentication method")
 
-
-			# Get privileges for authorization. This call should never fail because by this
-			# point we know the email address is a valid user --- unless the user has been
-			# deleted after the session was granted. On error the call will return a tuple
-			# of an error message and an HTTP status code.
-			privs = get_mail_user_privileges(username, env)
-			if isinstance(privs, tuple): raise ValueError(privs[0])
-
-			result.update({
-				'user_id': username,
-				'privs': privs
-			})
 		
-		elif header['scheme'] == 'Bearer':
+		if header['scheme'] == 'Bearer':
 			try:
 				claims = decode_and_validate_jwt(
 					oauth_config,
@@ -158,7 +128,6 @@ class AuthService:
 				result.update({
 					'user_id': claims['sub'],
 					'privs': claims['privs'],
-					#'bearer_token': header['value'],
 					'claims': claims,
 				})
 			except Exception as e:
@@ -170,7 +139,7 @@ class AuthService:
 				raise ValueError("Bearer token validation failed.") from e
 			
 		else:
-			raise ValueError("Unknown authorization scheme")	
+			raise ValueError("Unsupported authorization scheme")
 
 		log.debug('auth succeeded: token="%s" %s leeway=%s',
 				  '' if header['scheme'] != 'Bearer' \
@@ -214,11 +183,11 @@ class AuthService:
 		hash_key = self.key.encode('ascii')
 		return hmac.new(hash_key, msg, digestmod="sha256").hexdigest()
 
-	def create_session_key(self, username, env, type=None):
-		# Create a new session.
-		token = secrets.token_hex(32)
-		self.sessions[token] = {
-			"email": username,
-			"password_token": self.create_user_password_state_token(username, env),
-		}
-		return token
+	# def create_session_key(self, username, env, type=None):
+	# 	# Create a new session.
+	# 	token = secrets.token_hex(32)
+	# 	self.sessions[token] = {
+	# 		"email": username,
+	# 		"password_token": self.create_user_password_state_token(username, env),
+	# 	}
+	# 	return token

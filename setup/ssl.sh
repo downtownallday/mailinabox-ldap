@@ -194,6 +194,12 @@ nsCertType		= server
 nsComment		= \"Mail-In-A-Box Generated Certificate\"
 subjectKeyIdentifier	= hash
 authorityKeyIdentifier	= keyid,issuer
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.0 = $PRIMARY_HOSTNAME
+
 "
 
 	# Delete the certificate signing request because it has no other purpose.

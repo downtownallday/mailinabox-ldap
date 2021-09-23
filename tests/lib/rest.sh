@@ -77,8 +77,16 @@ rest_urlencoded() {
         esac
     done
 
-	echo "spawn: curl -w \"%{http_code}\" -X $verb --user \"${auth_user}:xxx\" ${data[@]} $url" 1>&2
-	output=$(curl -s -S -w "%{http_code}" -X $verb --user "${auth_user}:${auth_pass}" "${data[@]}" $url)
+    if [ "$auth_user" = "Bearer" ]; then
+	    echo "spawn: curl -w \"%{http_code}\" -X $verb --header \"Authorization: Bearer ${auth_pass}\" ${data[@]} $url" 1>&2
+	    output=$(curl -s -S -w "%{http_code}" -X $verb --header "Authorization: Bearer ${auth_pass}" "${data[@]}" $url)
+    elif [ -z "$auth_user" ]; then
+	    echo "spawn: curl -w \"%{http_code}\" -X $verb ${data[@]} $url" 1>&2
+	    output=$(curl -s -S -w "%{http_code}" -X $verb "${data[@]}" $url)
+    else
+	    echo "spawn: curl -w \"%{http_code}\" -X $verb --user \"${auth_user}:xxx\" ${data[@]} $url" 1>&2
+	    output=$(curl -s -S -w "%{http_code}" -X $verb --user "${auth_user}:${auth_pass}" "${data[@]}" $url)
+    fi
 	local code=$?
 
 	# http status is last 3 characters of output, extract it

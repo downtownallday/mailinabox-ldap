@@ -79,7 +79,8 @@ export function init_oauth_api(inst) {
                 //
                 throw new AuthenticationError(error, error.response.data.reason);
             }
-            else if (error.response.status == 401) {
+            else if (error.response.status == 401 ||
+                     error.response.status == 403) {
                 throw new AuthenticationError(error, "Login required");
             }
             throw error;
@@ -94,10 +95,6 @@ export function init_miab_api(inst) {
     inst.interceptors.request.use(request => {
         const auth = new AuthInfo();
         request.headers.authorization = auth.authorization_header;
-        // prevent daemon.py's @authorized_personnel_only from sending
-        // 401 responses, which cause the browser to pop up a
-        // credentials dialog box
-        request.headers['X-Requested-With'] = 'XMLHttpRequest';
         return request;
     });
 
@@ -120,16 +117,16 @@ export function init_miab_api(inst) {
                     );
                 }
             }
-            else if (response.data && response.data.status == 'token-expired')
-            {
-                const promise = refresh_access_token(inst, response.config);
-                if (promise) {
-                    return promise;
-                }
-                else {
-                    throw new AuthenticationError(error, "Login required");
-                }
-            }
+            // else if (response.data && response.data.status == 'expired_token')
+            // {
+            //     const promise = refresh_access_token(inst, response.config);
+            //     if (promise) {
+            //         return promise;
+            //     }
+            //     else {
+            //         throw new AuthenticationError(error, "Login required");
+            //     }
+            // }
             
             return response;
         },
@@ -139,29 +136,35 @@ export function init_miab_api(inst) {
                 throw error;
             }
             
-            if (error.response.status == 403 &&
-                error.response.data &&
-                error.response.data.status == 'error')
+            if (error.response.status == 403 ||
+                error.response.status == 401)
             {
-                // auth-checking wrappers return json:
-                //
-                //  { status:"error", reason:"..." }
-                //
-                throw new AuthenticationError(error, error.response.data.reason);
-            }
-            else if (error.response.status == 403) {
-                    throw new AuthenticationError(error, "Login required");
-            }
-            else if (error.response.status == 401) {
-                // refresh the access token
-                const promise = refresh_access_token(inst, error.config);
-                if (promise) {
-                    return promise;
+                if (error.response.data &&
+                    error.response.data.status == 'error')
+                {
+                    // auth-checking wrappers return json:
+                    //
+                    //  { status:"error", reason:"..." }
+                    //
+                    throw new AuthenticationError(error, error.response.data.reason);
                 }
-                else {
+                else if (error.response.data &&
+                         error.response.data.status == 'expired_token')
+                {
+                    // refresh the access token
+                    const promise = refresh_access_token(inst, error.config);
+                    if (promise) {
+                        return promise;
+                    }
+                    else {
+                        throw new AuthenticationError(error, "Login required");
+                    }
+                }
+                else  {
                     throw new AuthenticationError(error, "Login required");
                 }
             }
+            
             throw error;
         }
     );

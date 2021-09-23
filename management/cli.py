@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 #
 # This is a command-line script for calling management APIs
 # on the Mail-in-a-Box control panel backend. The script
@@ -7,14 +8,36 @@
 # tool can only be used as root.
 
 import sys, getpass, urllib.request, urllib.error, json, re, csv
+import os
+
+opt = {
+	# miab-ldap server to contact: specify it in MIAB_ACCESS_TOKEN_SERVER
+	# environment variable or -server argument
+	"server": None,
+}
+	
+def get_mgmt_uri():
+	server = opt['server']
+		
+	if 'MIAB_ACCESS_TOKEN' in os.environ and \
+	   'MIAB_ACCESS_TOKEN_SERVER' in os.environ:
+		server = os.environ['MIAB_ACCESS_TOKEN_SERVER']
+	
+	if server in [None, 'localhost', '127.0.0.1', '::1']:
+		return 'http://127.0.0.1:10222'
+	else:
+		return f"https://{server}/admin"
+
 
 def mgmt(cmd, data=None, is_json=False):
 	# The base URL for the management daemon. (Listens on IPv4 only.)
-	mgmt_uri = 'http://127.0.0.1:10222'
+	mgmt_uri = get_mgmt_uri()
 
-	setup_key_auth(mgmt_uri)
+	#setup_key_auth(mgmt_uri)
+	auth = get_key_auth()
 
 	req = urllib.request.Request(mgmt_uri + cmd, urllib.parse.urlencode(data).encode("utf8") if data else None)
+	req.add_header('Authorization', auth)
 	try:
 		response = urllib.request.urlopen(req)
 	except urllib.error.HTTPError as e:
@@ -57,6 +80,30 @@ def setup_key_auth(mgmt_uri):
 		passwd='')
 	opener = urllib.request.build_opener(auth_handler)
 	urllib.request.install_opener(opener)
+
+def get_key_auth():
+	if 'MIAB_ACCESS_TOKEN' in os.environ:
+		return 'Bearer ' + os.environ['MIAB_ACCESS_TOKEN']
+	else:
+		import base64
+		key = open('/var/lib/mailinabox/api.key').read().strip()
+		auth ="Basic %s" % base64.standard_b64encode( ("%s:%s" % (key,'')).encode('utf-8')).decode('ascii')
+	return auth
+
+
+
+# process command line options
+
+while len(sys.argv)>=3 and sys.argv[1].startswith('-'):
+	arg1 = sys.argv[1]
+	arg2 = sys.argv[2]
+	if arg1 == '-server':
+		opt['server'] = arg2
+	else:
+		break
+	sys.argv.pop(1)
+	sys.argv.pop(1)
+	
 
 if len(sys.argv) < 2:
 	print("""Usage:

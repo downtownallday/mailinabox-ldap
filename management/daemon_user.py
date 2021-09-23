@@ -63,10 +63,14 @@ def add_user_endpoints(app, env, auth_service, log_failed_login):
 	@app.route("/user/login", methods=['POST'])
 	def session_user_login():
 		try:
-			data = json.loads(request.data)
-			username = data['username']
-			password = data['password']
 			stay_signed_in = False
+			if 'username' in request.form:
+				username = request.form['username']
+				password = request.form['password']
+			else:
+				data = json.loads(request.data)
+				username = data['username']
+				password = data['password']
 			
 		except (KeyError, json.decoder.JSONDecodeError) as e:
 			return ("Bad request", 400)

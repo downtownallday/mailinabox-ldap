@@ -18,6 +18,46 @@
 # curl -X POST -d "email=new_user@mydomail.com" https://{{hostname}}/admin/mail/users/privileges/remove
 
 
+get_access_token() {
+	# get an acccess token using the "access_token.py" tool
+	#
+	# if the 4th parameter (method) is not specified or "password",
+	# use the OAuth2 "password" grant type. In this case the user must
+	# be an admin.
+	#
+	# the 4th parameter (method) may also be "code", in which case the
+	# OAuth2 authorization code grant is used and the user does not
+	# have to be an admin to obtain an access token.
+	local user="$1"
+	local pw="$2"
+	local totp_code="${3:-}"
+	local method="${4:-password}"
+	
+	local access_token code		
+	record "get access token for $user"
+	access_token=$(python3 "$MGMT_ACCESS_TOKEN_CLI" -method-$method localhost "$user" "$pw" "$totp_code" 2>&1)
+	code=$?
+	record "python exit code $code"
+	record "$access_token"
+	if [ $code -ne 0 ]; then
+		ACCESS_TOKEN_ERROR="$access_token"
+		return 1
+	fi
+	ACCESS_TOKEN_ERROR=""
+	ACCESS_TOKEN="$access_token"
+	ACCESS_TOKEN_SERVER="localhost"
+}
+
+assert_get_access_token() {
+	local user="$1"
+	if ! get_access_token "$@"; then
+		test_failure "Unable to get an access token for $user"
+		test_failure "${ACCESS_TOKEN_ERROR}"
+		return 1
+	fi
+	return 0
+}
+
 mgmt_start() {
 	# Must be called before performing any REST calls
 	local domain="${1:-somedomain.com}"
@@ -29,7 +69,10 @@ mgmt_start() {
 	record "[Creating a new account with admin rights for management tests]"
 	create_user "$MGMT_ADMIN_EMAIL" "$MGMT_ADMIN_PW" "admin"
 	MGMT_ADMIN_DN="$ATTR_DN"
-	record "Created: $MGMT_ADMIN_EMAIL at $MGMT_ADMIN_DN"	
+	record "Created: $MGMT_ADMIN_EMAIL at $MGMT_ADMIN_DN"
+
+	get_access_token "$MGMT_ADMIN_EMAIL" "$MGMT_ADMIN_PW" || die "Unable to obtain an access token for $MGMT_ADMIN_EMAIL: $ACCESS_TOKEN_ERROR"
+	MGMT_ADMIN_ACCESS_TOKEN="$ACCESS_TOKEN"
 }
 
 mgmt_end() {
@@ -39,26 +82,27 @@ mgmt_end() {
 
 
 mgmt_rest() {
-	# Issue a REST call to the management subsystem
+	# Issue a REST call to the management subsystem as MGMT_ADMIN
 	local verb="$1" # eg "POST"
 	local uri="$2"  # eg "/mail/users/add"
 	shift; shift;   # remaining arguments are data
 
 	# call function from lib/rest.sh
-	rest_urlencoded "$verb" "$uri" "${MGMT_ADMIN_EMAIL}" "${MGMT_ADMIN_PW}" "$@" >>$TEST_OF 2>&1
+	rest_urlencoded "$verb" "$uri" "Bearer" "${MGMT_ADMIN_ACCESS_TOKEN}" "$@" >>$TEST_OF 2>&1
 	return $?
 }
 
-mgmt_rest_as_user() {
-	# Issue a REST call to the management subsystem
+mgmt_rest_bearer() {
+	# Issue a REST call to the management subsystem using supplied
+	# access token
 	local verb="$1" # eg "POST"
 	local uri="$2"  # eg "/mail/users/add"
 	local email="$3"  # eg "alice@somedomain.com"
-	local pw="$4"   # user's password
+	local access_token="$4"   # access token
 	shift; shift; shift; shift   # remaining arguments are data
 
 	# call function from lib/rest.sh
-	rest_urlencoded "$verb" "$uri" "${email}" "${pw}" "$@" >>$TEST_OF 2>&1
+	rest_urlencoded "$verb" "$uri" "Bearer" "$access_token" "$@" >>$TEST_OF 2>&1
 	return $?
 }
 
@@ -220,9 +264,10 @@ mgmt_get_totp_token() {
 
 mgmt_mfa_status() {
 	local user="$1"
-	local pw="$2"
+	local access_token="$2"
 	record "[Get MFA status]"
-	if ! mgmt_rest_as_user "POST" "/admin/mfa/status" "$user" "$pw"; then
+	if ! mgmt_rest_bearer "POST" "/admin/mfa/status" "$user" "$access_token";
+	then
 		REST_ERROR="Failed: POST /admin/mfa/status: $REST_ERROR"
 		return 1
 	fi
@@ -239,14 +284,14 @@ mgmt_totp_enable() {
 	#
 	
 	local user="$1"
-	local pw="$2"
+	local access_token="$2"
 	local label="$3"  # optional
 	TOTP_SECRET=""
 
 	record "[Enable TOTP for $user]"
 
 	# 1. get a totp secret
-	if ! mgmt_mfa_status "$user" "$pw"; then
+	if ! mgmt_mfa_status "$user" "$access_token"; then
 		return 1
 	fi
 	
@@ -269,7 +314,7 @@ mgmt_totp_enable() {
 	
 	# 2. enable TOTP
 	record "Enabling TOTP using the secret and token"
-	if ! mgmt_rest_as_user "POST" "/admin/mfa/totp/enable" "$user" "$pw" "secret=$TOTP_SECRET" "token=$TOTP_TOKEN" "label=$label"; then
+	if ! mgmt_rest_bearer "POST" "/admin/mfa/totp/enable" "$user" "$access_token" "secret=$TOTP_SECRET" "token=$TOTP_TOKEN" "label=$label"; then
 		REST_ERROR="Failed: POST /admin/mfa/totp/enable: ${REST_ERROR}"
 		return 1
 	else
@@ -307,7 +352,7 @@ mgmt_mfa_disable() {
 	#    2: some system error occured
 	#    3: mfa is not configured for the user specified
 	local user="$1"
-	local pw="$2"
+	local access_token="$2"
 	local mfa_id="$3"
 	
 	record "[Disable MFA for $user]"
@@ -315,7 +360,7 @@ mgmt_mfa_disable() {
 		mfa_id=""
 	elif [ "$mfa_id" == "" ]; then
 		# get first mfa-id
-		if ! mgmt_mfa_status "$user" "$pw"; then
+		if ! mgmt_mfa_status "$user" "$access_token"; then
 			return 1
 		fi
 		
@@ -330,9 +375,8 @@ mgmt_mfa_disable() {
 		fi
 	fi
 	
-
 	
-	if ! mgmt_rest_as_user "POST" "/admin/mfa/disable" "$user" "$pw" "mfa-id=$mfa_id"
+	if ! mgmt_rest_bearer "POST" "/admin/mfa/disable" "$user" "$access_token" "mfa-id=$mfa_id"
 	then
 		REST_ERROR="Failed: POST /admin/mfa/disable: $REST_ERROR"
 		return 1
@@ -366,9 +410,9 @@ mgmt_assert_admin_login() {
 
 	# note: POST /admin/login always returns http status 200, but errors are in
 	# the json payload
-	record "[POST /admin/login as $user]"
-	if ! mgmt_rest_as_user "POST" "/admin/login" "$user" "$pw" "$@"; then
-		test_failure "POST /admin/login as $user failed: $REST_ERROR"
+	record "[POST /auth/user/login as $user]"
+	if ! rest_urlencoded "POST" "/auth/user/login" "" "" "$@" username="$user" password="$pw" >>$TEST_OF 2>&1; then
+		test_failure "POST /auth/user/login as $user failed: $REST_ERROR"
 		return 1
 
 	else
@@ -380,10 +424,12 @@ mgmt_assert_admin_login() {
 			return 1
 				
 		elif [ "$status" == "null" ]; then
-			test_failure "No 'status' in /admin/login json"
+			record "Expected '$expected_status' but got null"
+			test_failure "No 'status' in /aut/user/login json"
 			return 1
 
 		elif [ "$status" != "$expected_status" ]; then
+			record "Expected '$expected_status' but got '$status'"
 			test_failure "Expected a login status of '$expected_status', but got '$status'"
 			return 1
 			

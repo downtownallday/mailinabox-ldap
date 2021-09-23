@@ -15,12 +15,12 @@ source tests/vagrant/globals.sh || exit 1
 export PRIMARY_HOSTNAME=oauth2.local
 #export FEATURE_MUNIN=false
 export FEATURE_NEXTCLOUD=false
-export RC_CLONE_TAG=1.5-rc
+# export RC_CLONE_TAG=1.5-rc
+#   --enable-mod=roundcube-master
 tests/system-setup/vanilla.sh \
+   --enable-mod=dovecot-latest-2.3 \
    --enable-mod=dovecot-debug \
-   --enable-mod=roundcube-master \
-   --enable-mod=roundcube-debug \
-   --enable-mod=dovecot-latest-2.3
+   --enable-mod=roundcube-debug
 echo "EXITCODE: $?"
 SH
   end

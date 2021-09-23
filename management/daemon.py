@@ -16,8 +16,9 @@ import multiprocessing.pool, subprocess
 from datetime import timedelta
 
 from functools import wraps
-
-from flask import Flask, request, render_template, abort, Response, send_from_directory, make_response
+import urllib.parse
+		
+from flask import Flask, request, render_template, abort, Response, send_from_directory, make_response, redirect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import auth, utils
@@ -103,17 +104,15 @@ def authorized_personnel_only_opt(leeway=0, scheme=None):
 				privs = auth_result['privs']
 			except ValueError as e:
 				if isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
-					# access token is expired
+					# access token is expired or invalid
 					return Response(
 						json.dumps({
-							"status": "error",
+							"status": "expired_token",
 							"reason": str(e.__cause__)
 						})+"\n", 
-						status=401, 
-						mimetype='application/json', 
-						headers={ 
-							'WWW-Authenticate': f'Bearer realm={auth_service.auth_realm}' 
-						})
+						status=403, 
+						mimetype='application/json',
+					)
 
 				# Write a line in the log recording the failed login, unless no authorization header
 				# was given which can happen on an initial request before a 403 response.
@@ -136,18 +135,9 @@ def authorized_personnel_only_opt(leeway=0, scheme=None):
 			if not error:
 				error = "You are not an administrator."
 
-			# Not authorized. Return a 401 (send auth) and a prompt to authorize by default.
-			status = 401
-			headers = {
-				'WWW-Authenticate': 'Basic realm="{0}"'.format(auth_service.auth_realm),
-				'X-Reason': error,
-			}
-
-			if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-				# Don't issue a 401 to an AJAX request because the user will
-				# be prompted for credentials, which is not helpful.
-				status = 403
-				headers = None
+			# Not authorized. Return a 403 (forbidden)
+			status = 403
+			headers = None
 
 			if request.headers.get('Accept') in (None, "", "*/*"):
 				# Return plain text output.
@@ -181,7 +171,7 @@ def json_response(data, status=200):
 # Control Panel (unauthenticated views)
 
 @app.route('/')
-def index():
+def index(api_credentials=None):
 	# Render the control panel. This route does not require user authentication
 	# so it must be safe!
 
@@ -203,66 +193,9 @@ def index():
 		csr_country_codes=csr_country_codes,
 
 		oauth=oauth_config["client"],
+		api_credentials=api_credentials
 	)
 
-# Create a session key by checking the username/password in the Authorization header.
-@app.route('/login', methods=["POST"])
-def login():
-	# Is the caller authorized?
-	try:
-		auth_result = auth_service.authenticate(
-			request,
-			env,
-			oauth_config,
-			login_only=True
-		)
-		email = auth_result['user_id']
-		privs = auth_result['privs']
-	except ValueError as e:
-		if "missing-totp-token" in str(e):
-			return json_response({
-				"status": "missing-totp-token",
-				"reason": str(e),
-			})
-		# elif isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
-		# 	return json_response({
-		# 		"status": "token-expired",
-		# 		"reason": str(e)
-		# 	})
-		else:
-			# Log the failed login
-			log_failed_login(request)
-			return json_response({
-				"status": "invalid",
-				"reason": str(e),
-			})
-
-	# Return a new session for the user.
-	resp = {
-		"status": "ok",
-		"email": email,
-		"privileges": privs,
-		"api_key": auth_service.create_session_key(email, env, type='login'),
-	}
-
-	# Is authorized as admin? Return an API key for future use.
-	# if "admin" in privs and auth_result['scheme']=='Basic':
-	# 	resp["api_key"] = auth_service.create_user_key(email, env)
-	
-	app.logger.info("New login session created for {}".format(email))
-
-	# Return.
-	return json_response(resp)
-
-@app.route('/logout', methods=["POST"])
-def logout():
-	try:
-		email, _ = auth_service.authenticate(request, env, oauth_config, logout=True)
-		app.logger.info("{} logged out".format(email))
-	except ValueError as e:
-		pass
-	finally:
-		return json_response({ "status": "ok" })
 
 # MAIL
 
@@ -784,20 +717,21 @@ def oauth_authorization():
 		return ("Missing required parameter", 400)
 
 	state = {
-		'ssi': 0  # stay signed in
+		'ssi': False  # stay signed in
 	}
 	for str in state_str.split(";"):
 		x = str.split(":", maxsplit=1)
 		if len(x)!=2: continue
 		if x[0] == 'ssi':
-			state['ssi'] = 1 if x[1]=='1' else 0
+			state['ssi'] = True if x[1]=='1' else False
 		else:
 			app.logger.warning('invalid authorization state: %s', str)
 
 	response = auth_oauth.create_authorization_response(
 		oauth_config, 
 		code, 
-		state
+		state,
+		index
 	)
 	return response
 
@@ -910,8 +844,15 @@ def log_failed_login(request):
 	# will not be present.
 	if request.headers.getlist("X-Forwarded-For"):
 		ip = request.headers.getlist("X-Forwarded-For")[0]
-	else:
+	elif hasattr(request, 'remote_addr'):
 		ip = request.remote_addr
+	elif hasattr(request, 'url'):
+		ip = urllib.parse.urlparse(request.url).netloc
+	elif hasattr(request, 'uri'):
+		ip = urllib.parse.urlparse(request.uri).netloc
+	else:
+		app.logger.warning(f"Failed login attempt from unknown ip - timestamp {time.time()}")
+		return
 
 	# We need to add a timestamp to the log message, otherwise /dev/log will eat the "duplicate"
 	# message.

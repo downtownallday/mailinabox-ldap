@@ -71,7 +71,7 @@ _test_mixed_case() {
 
 
 test_mixed_case_users() {
-	# create mixed-case user name
+	# create mixed-case user anad domain names
 	# add user to alias using different cases
 	# send mail from another user to that user - validates smtp, imap, delivery
 	# send mail from another user to the alias
@@ -80,46 +80,18 @@ test_mixed_case_users() {
 	test_start "mixed-case-users"
 	
 	local alices=(alice@mgmt.somedomain.com
-				  aLICE@mgmt.somedomain.com
-				  aLiCe@mgmt.somedomain.com
-				  ALICE@mgmt.somedomain.com
-				  alIce@mgmt.somedomain.com)
+				  aLICE@MGMT.somedomain.com
+				  aLiCe@mgmt.SOMEDOMAIN.com
+				  ALICE@mgmt.somedomain.COM
+				  alIce@mgmt.SomeDomain.com)
 	local bobs=(bob@mgmt.somedomain.com
-				Bob@mgmt.somedomain.com
-				boB@mgmt.somedomain.com
-				BOB@mgmt.somedomain.com)
-	local aliases=(aLICE@mgmt.anotherdomain.com
-				   aLiCe@mgmt.anotherdomain.com
-				   ALICE@mgmt.anotherdomain.com)
+				Bob@MGMT.somedomain.com
+				boB@mgmt.SOMEDOMAIN.com
+				BOB@mgmt.somedomain.COM)
+	local aliases=(aLICE@MGMT.anotherdomain.com
+				   aLiCe@mgmt.ANOTHERDOMAIN.com
+				   ALICE@mgmt.anotherdomain.COM)
 
-	_test_mixed_case "${alices[*]}" "${bobs[*]}" "${aliases[*]}"
-	
-	test_end
-}
-
-
-test_mixed_case_domains() {
-	# create mixed-case domain names
-	# add user to alias using different cases
-	# send mail from another user to that user - validates smtp, imap, delivery
-	# send mail from another user to the alias
-	# send mail from that user as the alias to the other user
-
-	test_start "mixed-case-domains"
-	
-	local alices=(alice@mgmt.somedomain.com
-				  alice@MGMT.somedomain.com
-				  alice@mgmt.SOMEDOMAIN.com
-				  alice@mgmt.somedomain.COM
-				  alice@Mgmt.SomeDomain.Com)
-	local bobs=(bob@mgmt.somedomain.com
-				bob@MGMT.somedomain.com
-				bob@mgmt.SOMEDOMAIN.com
-				bob@Mgmt.SomeDomain.com)
-	local aliases=(alice@MGMT.anotherdomain.com
-				   alice@mgmt.ANOTHERDOMAIN.com
-				   alice@Mgmt.AnotherDomain.Com)
-	
 	_test_mixed_case "${alices[*]}" "${bobs[*]}" "${aliases[*]}"
 	
 	test_end
@@ -210,22 +182,34 @@ test_totp() {
 
 	start_log_capture
 
-	# create alice
+	# create regular user alice
 	mgmt_assert_create_user "$alice" "$alice_pw"
 
 	# alice must be admin to use TOTP
 	if ! have_test_failures; then
-		if mgmt_totp_enable "$alice" "$alice_pw"; then
-			test_failure "User must be an admin to use TOTP, but server allowed it"
+		# get an access token - we have to use the authorization code method
+		# because alice is not an administrator
+		assert_get_access_token "$alice" "$alice_pw" "" "code"
+	fi
+	
+	if ! have_test_failures; then
+		if mgmt_totp_enable "$alice" "$ACCESS_TOKEN"; then
+			test_failure "User must be an admin get MFA status, but server allowed it"
 		else
+			# make alice an admin
 			mgmt_assert_privileges_add "$alice" "admin"
 		fi
 	fi
 
 	# add totp to alice's account (if successful, secret is in TOTP_SECRET)
 	if ! have_test_failures; then
-		mgmt_assert_totp_enable "$alice" "$alice_pw"
-		# TOTP_SECRET and TOTP_TOKEN are now set...
+		# get a new access token that has updated claims now that
+		# alice is admin
+		assert_get_access_token "$alice" "$alice_pw"
+		if ! have_test_failures; then
+			mgmt_assert_totp_enable "$alice" "$ACCESS_TOKEN"
+			# TOTP_SECRET and TOTP_TOKEN are now set...
+		fi
 	fi
 
 	# logging in with just the password should now fail
@@ -235,23 +219,20 @@ test_totp() {
 	fi
 	
 
-	# logging into /admin/me with a password and a token should
-	# succeed, and an api_key generated
-	local api_key
+	# logging into /auth/user/login with a password and totp code
+	# should succeed - this is the endpoint the admin ui uses
 	if ! have_test_failures; then		
-		record "Try using a password and a token to get the user api key, we may have to wait 30 seconds to get a new token..."
+		record "Try using a password plus a totp code, we may have to wait 30 seconds to get a new code..."
 
-		local old_totp_token="$TOTP_TOKEN"
 		if ! mgmt_get_totp_token "$TOTP_SECRET" "$TOTP_TOKEN"; then
 			test_failure "Could not obtain a new TOTP token"
 			
 		else
-			# we have a new token, try logging in ...
-			# the token must be placed in the header "x-auth-token"
+			# we have a new totp code, try logging in ...
+			# the code must be placed in the header "x-auth-token"
 			if mgmt_assert_admin_login "$alice" "$alice_pw" "ok" "--header=x-auth-token: $TOTP_TOKEN"
 			then
-				api_key="$(/usr/bin/jq -r '.api_key' <<<"$REST_OUTPUT")"
-				record "Success: login with TOTP token successful. api_key=$api_key"
+				record "Success: login with TOTP token successful"
 
 				# ensure the totpMruToken was changed in LDAP
 				get_attribute "$LDAP_USERS_BASE" "(mail=$alice)" "totpMruToken"
@@ -263,20 +244,43 @@ test_totp() {
 		fi
 	fi
 
-	# we should be able to login using the user's api key
-	if ! have_test_failures; then		
-		record "[Use the session key to enum users]"
-		if ! mgmt_rest_as_user "GET" "/admin/mail/users?format=json" "$alice" "$api_key"; then
-			test_failure "Unable to use the session key to issue a rest call: $REST_ERROR"
+	# we should not be permitted to reuse TOTP codes. geting an
+	# access token for alice should fail.
+	if ! have_test_failures; then
+		record "[Test that TOTP codes can't be reused]"
+		if get_access_token "$alice" "$alice_pw" "$TOTP_TOKEN"; then
+		   test_failure "TOTP code reuse should not be permitted"
+
+		elif ! grep -F "invalid-totp-token" <<<"$ACCESS_TOKEN_ERROR" >/dev/null
+		then
+			test_failure "Unexpected error getting access_token: $ACCESS_TOKEN_ERROR"
+		fi
+	fi
+	
+	# ensure getting an access token with TOTP enabled works
+	if ! have_test_failures; then
+		record "Get a new TOTP code"
+		if ! mgmt_get_totp_token "$TOTP_SECRET" "$TOTP_TOKEN"; then
+			test_failure "Could not obtain a new TOTP token"
+			
 		else
-			record "Success: $REST_OUTPUT"
+			assert_get_access_token "$alice" "$alice_pw" "$TOTP_TOKEN"
 		fi
 	fi
 
-	# disable totp on the account - login should work with just the password
-	# and the ldap entry should not have the 'totpUser' objectClass
+	# perform a simple test to ensure an api call works
+	if ! have_test_failures; then
+		if ! mgmt_rest_bearer "GET" "/admin/mail/users" "$alice" "$ACCESS_TOKEN"
+		then
+			test_failure "Could not perform a simple user list test: $REST_ERROR"
+		fi
+	fi
+	
+	# disable totp on the account. ensure logging in with without TOTP
+	# works. check that the ldap entry does not have the 'totpUser'
+	# objectClass
 	if ! have_test_failures; then		
-		if mgmt_assert_mfa_disable "$alice" "$api_key"; then
+		if mgmt_assert_mfa_disable "$alice" "$ACCESS_TOKEN"; then
 			mgmt_assert_admin_login "$alice" "$alice_pw" "ok"
 		fi
 	fi
@@ -292,12 +296,32 @@ test_totp() {
 	test_end
 }
 
+test_master_api_key() {
+	test_start "master_api_key"
+	local allow_api_key_login
+	allow_api_key_login=$(jq .allow_api_key_login /var/lib/mailinabox/mgmt_oauth_config.json 2>&1)
+	if [ $? -ne 0 ]; then
+		die "Could not read /var/lib/mailinabox/mgmt_oauth_config.json: $allow_api_key_login"
+	fi
+	record "[test that master api key works as configured]"
+	record "run: $MGMT_CLI user"
+	record "allow_api_key_login='$allow_api_key_login'"
+	local output code
+	output="$($MGMT_CLI user 2>&1)"
+	code=$?
+	if [ "$allow_api_key_login" = "true" ]; then
+		assert_python_success $code "$output"
+	else
+		assert_python_failure $code "$output" "system api key login is disabled"
+	fi
+	test_end
+}
 
 
 suite_start "management-users" mgmt_start
 
+test_master_api_key
 test_totp
-test_mixed_case_domains
 test_mixed_case_users
 test_intl_domains
 

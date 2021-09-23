@@ -372,7 +372,7 @@ assert_python_success() {
 	record
 	record "python exit code: $code"
 	if [ $code -ne 0 ]; then
-		test_failure "unable to process mail: $(python_error "$output")"
+		test_failure "python command exited with non-zero code ($code): $(python_error "$output")"
 		return 1
 	fi
 	return 0

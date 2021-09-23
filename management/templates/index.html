@@ -183,6 +183,7 @@
       <div id="panel_access_denied" class="admin_panel">
         <h3 class="text-danger">Access Denied</h3>
         <p>You are not an administrator on this system</p>
+        <p><a href="#login" onclick="return show_panel(this);">Login</a></p>
       </div>
 
       <hr>
@@ -300,7 +301,11 @@ function ajax_with_indicator(options) {
   }
   function handle_token_refresh(jqxhr, old_success, old_error) {
     var auth = new AuthInfo(api_credentials);
-    if (jqxhr.status != 401 || ! auth.is_refreshable()) {
+    if ((jqxhr.status != 401 && jqxhr.status != 403) ||
+        ! auth.is_refreshable() ||
+        !jqxhr.responseJSON ||
+        jqxhr.responseJSON.status !== 'expired_token')
+    {
       return false;
     }
     options.success = old_success;
@@ -332,8 +337,11 @@ function ajax_with_indicator(options) {
         var len = refresh_queue.length;
         var xmsg = (xhr.status==400 ? `(${text})` : '');
         refresh_queue = [];
-        if (xhr.status == 403)
-          return;
+        if (xhr.status == 403) {
+            show_modal_error("Error", `Something went wrong, sorry. ${text}`);
+            do_logout();
+            return;
+        }
         else if (len == 1 && old_error)
           old_error(text, xhr);
         else 
@@ -365,7 +373,24 @@ function ajax_with_indicator(options) {
   return false; // handy when called from onclick
 }
 
-var api_credentials = null;
+var api_credentials = {{api_credentials|tojson|safe}};
+if (api_credentials !== null) {
+    // this is a new login
+    if (AuthInfo.has_local_storage()) {
+       // save credentials in local storage
+       var auth = new AuthInfo(api_credentials);
+       auth.remember({ munin:true });
+       if (auth.is_admin()) {
+           // redirect so page location is not oauth-authorization?code=...
+           window.location = '/admin/';
+       }
+    }
+}
+else {
+    // recall saved credentials, if available
+    api_credentials = AuthInfo.recall();
+}
+
 function api(url, method, data, callback, callback_error, headers) {
   // from http://www.webtoolkit.info/javascript-base64.html
   function base64encode(input) {
@@ -420,6 +445,7 @@ function api(url, method, data, callback, callback_error, headers) {
     error: callback_error || default_error,
     statusCode: {
       403: function(xhr) {
+        if (this.error !== default_error) return;
         // Credentials are no longer valid. Try to login again.
         var p = current_panel;
         show_panel('login');
@@ -432,14 +458,15 @@ function api(url, method, data, callback, callback_error, headers) {
 var current_panel = null;
 var switch_back_to_panel = null;
 
-function do_logout() {
-  function clear() {
+function do_logout(next_panel) {
+  function clear(panel) {
     AuthInfo.forget();
     api_credentials = null;
-    show_panel('login');
+    show_panel(panel);
     // Reset menus.
     show_hide_menus();
   }            
+  const clear_fn = clear.bind(this, next_panel || 'login');
   const auth = new AuthInfo(api_credentials);
   if (auth.is_refreshable()) {
     $.ajax({
@@ -451,13 +478,12 @@ function do_logout() {
       beforeSend: function(xhr) {
         xhr.setRequestHeader('Authorization', auth.authorization_header);
       },
-      success: clear,
-      error: clear
+      success: clear_fn,
+      error: clear_fn
     });
   }
   else {
-    // Clear the session from the backend.
-    api("/logout", "POST", undefined, clear, clear);
+    clear_fn();
   }
 }
 
@@ -482,69 +508,13 @@ function show_panel(panelid) {
 
 // OAUTH
 
-function get_oauth_login() {
-  // capture oauth related cookies passed to us by the server for a
-  // new login, then delete them
-  var oauthinfo = {
-    user_id: null,
-    token: null,
-    refresh_token: null,
-    expires_in: null,
-    privileges: [],
-    type: 'Bearer',
-    state_ssi: null   // stay signed in
-  };
-
-  const _cookie_map = {
-    'auth-user':          { key:'user_id',       type:String },
-    'auth-token':         { key:'token',         type:String },
-    'auth-refresh-token': { key:'refresh_token', type:String },
-    'auth-expires-in':    { key:'expires_in',    type:Number },
-    'auth-privileges':    { key:'privileges',    type:v => v.split(',') },
-    'auth-state-ssi':     { key:'state_ssi',     type:Number }
-  };
-
-  // load from cookies
-  document.cookie.split('; ').forEach(item => {
-    Object.keys(_cookie_map).forEach( name => {
-      if (item.startsWith(name + '='))
-          oauthinfo[_cookie_map[name].key] = 
-             _cookie_map[name].type(decodeURIComponent(item.split('=')[1]));
-    });
-  });
-  
-  // delete all cookies
-  document.cookie.split('; ').forEach(item => {
-    Object.keys(_cookie_map).forEach( name => {
-      if (item.startsWith(name + '='))
-          document.cookie = name+'=; path=/admin/; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=Strict';
-    });
-  });
-
-  return oauthinfo;
-}
-
-
-
-
 $(function() {
-  // check for return from OAuth login redirection
-  var auth = new AuthInfo(get_oauth_login());
-
-  if (auth.is_valid() && ! auth.is_admin()) {
-    do_logout();
-    show_panel('access_denied');
+  var auth = new AuthInfo(api_credentials);
+  if (auth.is_set() && ! auth.is_admin()) {
+    do_logout('access_denied');
     return;
   }
-  else if (auth.is_valid()) {
-    auth.remember({munin:true});
-    api_credentials = auth.as_object();
-  }
-  else {
-    api_credentials = AuthInfo.recall();
-    auth = new AuthInfo();
-  }
-  
+
   // Recall what the user was last looking at.
   var panel = api_credentials ? 'welcome' : 'login';
   if (api_credentials != null && typeof localStorage != 'undefined' && localStorage.getItem("miab-cp-lastpanel")) {

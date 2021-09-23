@@ -4,13 +4,13 @@
 
 class AuthInfo {
     constructor(credentials) {
-        if (!credentials) 
+        if (credentials === undefined)
             credentials = AuthInfo.recall();
 
         if (credentials instanceof AuthInfo)
             Object.assign(this, credentials)
 
-        else if (credentials) 
+        else if (credentials)
             this.load_object(credentials);
     }
 
@@ -175,6 +175,11 @@ class AuthInfo {
         }
     }
 
+    static has_local_storage() {
+        return ( typeof localStorage != 'undefined' && 
+                 typeof sessionStorage != 'undefined' );
+    }
+
     remember(opts) {
         var credentials = this.as_object();
         if (! credentials) {
@@ -183,9 +188,7 @@ class AuthInfo {
         }
 
         // Remember the credentials
-        if (typeof localStorage != 'undefined' && 
-            typeof sessionStorage != 'undefined')
-        {
+        if (AuthInfo.has_local_storage()) {
             if (this.state_ssi) {
                 // stay signed in
                 localStorage.setItem(
@@ -209,9 +212,8 @@ class AuthInfo {
 
         // Authentication for munin pages. We use a cookie, which is
         // the only way to accomplish this. The CSRF exposure is
-        // mitigated by samesite=Strict, plus it's not a very
-        // dangerous service.
-        if (opts && opts.munin) {
+        // mitigated by samesite=Strict
+        if (opts && opts.munin && this.is_bearer()) {
             document.cookie = `auth-bearer=${this.access_token}; Path=/admin/munin/; Secure; SameSite=Strict`;
         }
         

@@ -211,10 +211,14 @@ def revoke_token(oauth_config, token, token_type):
 	return post
 
 
-def create_authorization_response(oauth_config, code, state):
-	# obtain an access token from the oauth server
+def create_authorization_response(oauth_config, code, state, handler):
+	# obtain an access token from the oauth server using an
+	# authorization code, then invoke the given `handler` with the
+	# returned credentials (client-side format). the handler must
+	# return a Response object. if any errors occur, this function
+	# returns an error Response without invoking the handler.
 	post = obtain_access_token(oauth_config, code)
-	if post.status_code == 400:
+	if post.status_code in [400, 401, 403]:
 		#json = post.json()
 		#return ( json.get('error_description', json.get('error')), 400 )
 		return redirect('/')
@@ -222,11 +226,11 @@ def create_authorization_response(oauth_config, code, state):
 		return ("Error contacting oauth server", 500)
 
 	# decode and validate the access token; get the user id
-	json = post.json()
+	post_json = post.json()
 	try:
 		claims = decode_and_validate_jwt(
 			oauth_config,
-			json['access_token']
+			post_json['access_token']
 		)
 	except Exception as e:
 		log.error(
@@ -236,19 +240,16 @@ def create_authorization_response(oauth_config, code, state):
 		)
 		return (str(e), 500)
 
-	def setcookie(name, value):
-		response.headers.add('Set-Cookie', f'{name}={urllib.parse.quote(value)}; Secure; Path=/; SameSite=Strict; max-age=30')
-
-	# redirect with the access token in cookies
-	response = redirect('/') 
-	setcookie("auth-user", claims.get_user_id())
-	setcookie("auth-token", json['access_token'])
-	setcookie("auth-refresh-token", encryption_utils.encrypt(json['refresh_token']))
-	setcookie("auth-expires-in", str(json['expires_in'])),
-	setcookie("auth-privileges", ",".join(claims.get_privs()))
-	setcookie("auth-state-ssi", str(state['ssi']))
-	return response
-
+	api_credentials = {
+		"user_id": claims.get_user_id(),
+		"token": post_json['access_token'],
+		"refresh_token": encryption_utils.encrypt(post_json['refresh_token']),
+		"scheme": "Bearer",
+		"expires": post_json['expires_in'],
+		"privileges": claims.get_privs(),
+		"state_ssi": state['ssi']
+	}
+	return handler(api_credentials=api_credentials)
 
 
 
