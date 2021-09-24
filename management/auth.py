@@ -10,7 +10,6 @@ from mailconfig import validate_login, get_mail_password, get_mail_user_privileg
 from mfa import get_hash_mfa_state, validate_auth_mfa
 from auth_oauth import (
 	decode_and_validate_jwt,
-	ExpiredTokenError
 )
 
 log = logging.getLogger(__name__)
@@ -102,7 +101,7 @@ class AuthService:
 			# is not associated with a user.
 			elif username == self.key and not login_only:
 				# The user passed the master API key which grants administrative privs.
-				if 'allow_api_key_login' not in oauth_config['client'] or not oauth_config['client']['allow_api_key_login']:
+				if not oauth_config['client']['allow_api_key_login']:
 					log.warning("system api key login is disabled")
 					raise ValueError("system api key login is disabled")
 				

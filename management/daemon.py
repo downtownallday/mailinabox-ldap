@@ -34,7 +34,7 @@ auth_service = auth.AuthService()
 
 oauth_config = {
 	# client config json: see setup/oauth.sh
-	'client': auth_oauth.get_client_config(env),
+	'client': auth_oauth.get_oauth_client_config(env),
 
 	# the key, algorithm and other info needed to verify the oauth
 	# server's signature on a jwt access token
@@ -103,13 +103,13 @@ def authorized_personnel_only_opt(leeway=0, scheme=None):
 				email = auth_result['user_id']
 				privs = auth_result['privs']
 			except ValueError as e:
-				if isinstance(e.__cause__, auth_oauth.ExpiredTokenError):
-					# access token is expired or invalid
+				if isinstance(e.__cause__, auth_oauth.JoseError):
+					# access token may be expired or invalid
 					return Response(
 						json.dumps({
-							"status": "expired_token",
-							"reason": str(e.__cause__)
-						})+"\n", 
+							"error": e.__cause__.error, # eg. "expired_token"
+							"description": e.__cause__.description
+						}), 
 						status=403, 
 						mimetype='application/json',
 					)

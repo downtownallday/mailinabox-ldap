@@ -304,7 +304,7 @@ function ajax_with_indicator(options) {
     if ((jqxhr.status != 401 && jqxhr.status != 403) ||
         ! auth.is_refreshable() ||
         !jqxhr.responseJSON ||
-        jqxhr.responseJSON.status !== 'expired_token')
+        jqxhr.responseJSON.error !== 'expired_token')
     {
       return false;
     }
@@ -363,6 +363,9 @@ function ajax_with_indicator(options) {
     hide_loading_indicator();
     if (handle_token_refresh(jqxhr, old_success, old_error)) 
       {/*pass*/}
+    else if (jqxhr.status == 401 || jqxhr.status == 403)
+      // credentials invalid - login again
+      do_logout();
     else if (!old_error)
       show_modal_error("Error", "Something went wrong, sorry.")
     else
@@ -443,15 +446,14 @@ function api(url, method, data, callback, callback_error, headers) {
     },
     success: callback,
     error: callback_error || default_error,
-    statusCode: {
-      403: function(xhr) {
-        if (this.error !== default_error) return;
-        // Credentials are no longer valid. Try to login again.
-        var p = current_panel;
-        show_panel('login');
-        switch_back_to_panel = p;
-      }
-    }
+    // statusCode: {
+    //   403: function(xhr) {
+    //     // Credentials are no longer valid. Try to login again.
+    //     var p = current_panel;
+    //     show_panel('login');
+    //     switch_back_to_panel = p;
+    //   }
+    // }
   })
 }
 

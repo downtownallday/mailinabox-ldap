@@ -56,6 +56,7 @@ export class Me {
  * axios interceptors for authentication
  */
 
+// axios interceptors for oauth pages
 export function init_oauth_api(inst) {
     // oauth server uses sessions, we just check for authentication
     // errors
@@ -90,6 +91,7 @@ export function init_oauth_api(inst) {
     return inst;
 }
 
+// axios interceptors for admin panel pages
 export function init_miab_api(inst) {
     // requests: attach authorization header
     inst.interceptors.request.use(request => {
@@ -104,68 +106,57 @@ export function init_miab_api(inst) {
     // users to re-login
     inst.interceptors.response.use(
         response => {
-            if (response.data && response.data.status == 'invalid')
-            {
-                var url = axios_url(response.config);
-                if (url == '/admin/login') {
-                    // non-flask-session/admin login, which always
-                    // returns 200, even for failed logins
-                    throw new AuthenticationError(
-                        null,
-                        response.data.reason,
-                        response
-                    );
-                }
-            }
-            // else if (response.data && response.data.status == 'expired_token')
-            // {
-            //     const promise = refresh_access_token(inst, response.config);
-            //     if (promise) {
-            //         return promise;
-            //     }
-            //     else {
-            //         throw new AuthenticationError(error, "Login required");
-            //     }
-            // }
-            
             return response;
         },
         
         error => {
-            if (! error.response) {
+            if (! error.response)
+            {
                 throw error;
             }
             
-            if (error.response.status == 403 ||
-                error.response.status == 401)
+            if (error.response.status != 403 &&
+                error.response.status != 401)
             {
-                if (error.response.data &&
-                    error.response.data.status == 'error')
-                {
-                    // auth-checking wrappers return json:
-                    //
-                    //  { status:"error", reason:"..." }
-                    //
-                    throw new AuthenticationError(error, error.response.data.reason);
-                }
-                else if (error.response.data &&
-                         error.response.data.status == 'expired_token')
-                {
+                throw error;
+            }
+
+            if (error.response.data &&
+                error.response.data.status == 'error')
+            {
+                // miab auth-checking wrappers return json:
+                //
+                //  { status:"error", reason:"..." }
+                //
+                throw new AuthenticationError(error, error.response.data.reason);
+            }
+                
+            if (error.response.data &&
+                error.response.data.error)
+            {
+                // oauth functions return json:
+                //
+                //   { error:error-id, description:"..." }
+                //
+                const error_id=error.response.data.error;
+                const description=error.response.data.description || "Login required";
+                
+                if (error_id == 'expired_token') {
                     // refresh the access token
                     const promise = refresh_access_token(inst, error.config);
                     if (promise) {
                         return promise;
                     }
                     else {
-                        throw new AuthenticationError(error, "Login required");
+                        throw new AuthenticationError(error, description);
                     }
                 }
-                else  {
-                    throw new AuthenticationError(error, "Login required");
+                else {
+                    throw new AuthenticationError(error, description);
                 }
             }
-            
-            throw error;
+                
+            throw new AuthenticationError(error, "Login required");
         }
     );
 

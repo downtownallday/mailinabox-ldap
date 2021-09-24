@@ -14,6 +14,7 @@ from authlib.common.encoding import (
 )
 from authlib import jose
 from authlib.jose.errors import (
+	JoseError,
     MissingClaimError,
     InvalidClaimError,
     ExpiredTokenError,
@@ -72,7 +73,7 @@ def decode_and_validate_jwt(oauth_config, jwt, leeway=0):
 	
 	Retuns: a MyJWTClaims instance
 
-	Throws jose errors:
+	Throws jose errors (base class authlib.jose.JoseError):
 	   DecodeError
 	   BadSignatureError
 	   MissingClaimError
@@ -91,7 +92,7 @@ def decode_and_validate_jwt(oauth_config, jwt, leeway=0):
 	return claims
 
 
-def get_client_config(env):
+def get_oauth_client_config(env):
 	''' retrieve the oauth config for the managment console
 	    returns: dict
 	'''
