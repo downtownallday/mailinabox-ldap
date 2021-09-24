@@ -37,8 +37,14 @@ hmac_bits=384
 # oauth_token_url: endpoint where the management daemon can obtain the
 # user's access token from the oauth server
 #
+# oauth_revoke_url: endpoint where the management daemon can revoke
+# a user's refresh token
+#
 # authorize_url: the managment daemon endpoint that handles the
 # redirect after oauth server login
+#
+# allow_api_key_login: boolean. controls whether to allow api key
+# logins (bypassing oauth)
 #
 mkdir -p $(dirname "$CLIENT_CONFIG")
 if [ ! -e "$CLIENT_CONFIG" ]; then
@@ -50,7 +56,7 @@ if [ ! -e "$CLIENT_CONFIG" ]; then
    "oauth_token_url": "http://localhost:10222/oauth/token",
    "oauth_revoke_url": "http://localhost:10222/oauth/revoke",
    "authorize_url": "https://${PRIMARY_HOSTNAME}/admin/oauth-authorization",
-   "allow_api_key_login": false
+   "allow_api_key_login": true
 }
 EOF
     chmod 600 "$CLIENT_CONFIG"
