@@ -260,7 +260,7 @@ def create_refresh_response(oauth_config, request, s_refresh_token):
 			.decrypt(s_refresh_token)\
 			.decode('ascii', 'strict')
 	except Exception as e:
-		log.warning('refresh_token failed validation: %s', str(e))
+		log.warning('refresh_token failed validation: %s: %s', e.__class__.__name__, str(e))
 		return ('Token not valid', 403)
 	
 	# retrieve new tokens from the oauth server
