@@ -119,10 +119,16 @@ source setup/management-capture.sh
 source setup/munin.sh
 
 # Wait for the management daemon to start...
+declare -i timeout=30
 until nc -z -w 4 127.0.0.1 10222
 do
 	echo Waiting for the Mail-in-a-Box management daemon to start...
 	sleep 2
+    let timeout-=2
+    if [ $timeout -le 0 ]; then
+        echo "Giving up !"
+        exit 1
+    fi
 done
 
 # ...and then have it write the DNS and nginx configuration files and start those
