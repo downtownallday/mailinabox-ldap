@@ -132,7 +132,7 @@ esac
 
 
 # install basic stuff, set the hostname, time, etc
-init
+init "$@"
 
 # if MiaB-LDAP is already migrated, do not run upstream setup
 [ -e /etc/mailinabox.conf ] && . /etc/mailinabox.conf

@@ -1,6 +1,6 @@
 #
 # requires:
-#    scripts: [ colored-output.sh, rest.sh ]
+#    scripts: [ colored-output.sh, rest.sh, populate.sh ]
 #
 # these functions are meant for comparing upstream (non-LDAP)
 # installations to a subsequent MiaB-LDAP upgrade
@@ -28,9 +28,12 @@ installed_state_capture() {
     echo "GIT_ORIGIN='$(git remote -v | grep ^origin | grep 'fetch)$' | awk '{print $2}')'" >>"$info"
     echo "MIGRATION_VERSION=$(cat "$STORAGE_ROOT/mailinabox.version")" >>"$info"
 
+    # get an access token
+    miab_api_auth "$EMAIL_ADDR" "$EMAIL_PW" 1>&2 || return 1
+        
     # record users
     H2 "record users"
-    if ! rest_urlencoded GET "/admin/mail/users?format=json" "$EMAIL_ADDR" "$EMAIL_PW" --insecure 2>/dev/null
+    if ! rest_urlencoded GET "/admin/mail/users?format=json" "${AUTH[0]}" "${AUTH[1]}" --insecure 2>/dev/null
     then
         echo "Unable to get users: rc=$? err=$REST_ERROR" 1>&2
         return 1
@@ -39,7 +42,7 @@ installed_state_capture() {
 
     # record aliases
     H2 "record aliases"
-    if ! rest_urlencoded GET "/admin/mail/aliases?format=json" "$EMAIL_ADDR" "$EMAIL_PW" --insecure 2>/dev/null
+    if ! rest_urlencoded GET "/admin/mail/aliases?format=json" "${AUTH[0]}" "${AUTH[1]}" --insecure 2>/dev/null
     then
         echo "Unable to get aliases: rc=$? err=$REST_ERROR" 1>&2
         return 2

@@ -280,11 +280,19 @@ miab_ldap_install() {
 populate_by_name() {
     local populate_name
     for populate_name; do
-        H1 "Populate Mail-in-a-Box ($populate_name)"
-        local populate_script="tests/system-setup/populate/${populate_name}-populate.sh"
-        if [ ! -e "$populate_script" ]; then
-            die "Does not exist: $populate_script"
-        fi
-        "$populate_script" || die "Failed: $populate_script"
+        case "$populate_name" in
+            --*=* )
+                # ignore command line options
+                ;;
+
+            * )                
+                H1 "Populate Mail-in-a-Box ($populate_name)"
+                local populate_script="tests/system-setup/populate/${populate_name}-populate.sh"
+                if [ ! -e "$populate_script" ]; then
+                    die "Does not exist: $populate_script"
+                fi
+                "$populate_script" || die "Failed: $populate_script"
+                ;;
+        esac
     done
 }

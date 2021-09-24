@@ -6,13 +6,20 @@
 
 
 #
+# Get an access token
+#
+miab_api_auth "$EMAIL_ADDR" "$EMAIL_PW" || exit 1
+admin_auth=( ${AUTH[@]} )
+
+#
 # Add user
 #
-if ! populate_miab_users "" "" "" "${TEST_USER}:${TEST_USER_PASS}"
+if ! populate_miab_users "" "${admin_auth[0]}" "${admin_auth[1]}" "${TEST_USER}:${TEST_USER_PASS}"
 then
     echo "Unable to add user"
     exit 1
 fi
+    
 
 #
 # Add Nextcloud contact and force Roundcube contact sync to ensure the

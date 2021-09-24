@@ -4,6 +4,7 @@
 # requirements:
 #   system packages: [ curl ]
 #   lib scripts: [ system.sh, color-output.sh ]
+#   vars: PRIMARY_HOSTNAME must be set
 #
 
 rest_urlencoded() {
@@ -102,6 +103,11 @@ rest_urlencoded() {
 			# 56=Unexpected EOF
 			echo "Ignoring curl return code 56 due to 200 status" 1>&2
 			
+        elif [ $code -eq 18 -a $REST_HTTP_CODE -eq 200 ] && [ $verb = "HEAD" ]; then
+            # ignore curl error transfer closed with outstanding read
+            # data remaining on a HEAD request
+            code=0
+            
 		elif [ $code -ne 16 -o $REST_HTTP_CODE -ne 200 ]; then
 			# any error code will fail the rest call except for a 16
 			# with a 200 HTTP status.
