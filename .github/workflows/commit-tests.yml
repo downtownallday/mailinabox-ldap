@@ -16,8 +16,9 @@ jobs:
       # php 7.2 (the default on a new ubuntu 18 install)
       - run: sudo update-alternatives --set php /usr/bin/php7.2
       - name: enable-setup-mods
-        run: sudo mkdir -p local
-        run: sudo ln -s "../setup/mods.available/dovecot-latest-2.3.sh" "local/dovecot-latest-2.3.sh"
+        run:
+          - sudo mkdir -p local
+          - sudo ln -s "../setup/mods.available/dovecot-latest-2.3.sh" "local/dovecot-latest-2.3.sh"
       - name: setup
         run: sudo -E tests/system-setup/remote-nextcloud-docker.sh upgrade basic
       - name: test-runner
@@ -35,8 +36,9 @@ jobs:
       - uses: actions/checkout@v2
       - run: sudo update-alternatives --set php /usr/bin/php7.2
       - name: enable-setup-mods
-        run: sudo mkdir -p local
-        run: sudo ln -s "../setup/mods.available/dovecot-latest-2.3.sh" "local/dovecot-latest-2.3.sh"
+        run:
+          - sudo mkdir -p local
+          - sudo ln -s "../setup/mods.available/dovecot-latest-2.3.sh" "local/dovecot-latest-2.3.sh"
       - name: setup
         run: sudo -E tests/system-setup/upgrade-from-upstream.sh basic totpuser
       - name: test-runner
