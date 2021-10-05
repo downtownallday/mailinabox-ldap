@@ -85,6 +85,7 @@ class AuthService:
 			header = parse_authorization_header(
 				'Bearer ' + request.cookies['auth-bearer']
 			)
+			header['scheme'] = 'Bearer-cookie';
 		else:
 			raise ValueError("No authorization provided.")
 		
@@ -117,7 +118,7 @@ class AuthService:
 				raise ValueError("Unsupported authentication method")
 
 		
-		if header['scheme'] == 'Bearer':
+		if header['scheme'] in ['Bearer', 'Bearer-cookie']:
 			try:
 				claims = decode_and_validate_jwt(
 					oauth_config,
@@ -182,11 +183,3 @@ class AuthService:
 		hash_key = self.key.encode('ascii')
 		return hmac.new(hash_key, msg, digestmod="sha256").hexdigest()
 
-	# def create_session_key(self, username, env, type=None):
-	# 	# Create a new session.
-	# 	token = secrets.token_hex(32)
-	# 	self.sessions[token] = {
-	# 		"email": username,
-	# 		"password_token": self.create_user_password_state_token(username, env),
-	# 	}
-	# 	return token

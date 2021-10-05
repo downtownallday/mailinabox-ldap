@@ -1,4 +1,5 @@
 #!/usr/local/lib/mailinabox/env/bin/python
+# -*- indent-tabs-mode: t; tab-width: 4; python-indent-offset: 4; -*-
 # Utilities for installing and selecting SSL certificates.
 
 import os, os.path, re, shutil, subprocess, tempfile
@@ -59,54 +60,61 @@ def get_ssl_certificates(env):
 			continue
 
 		# Remember where we got this object.
-		pem._filename = fn
 
 		# Is it a private key?
 		if isinstance(pem, RSAPrivateKey):
-			private_keys[pem.public_key().public_numbers()] = pem
+			private_keys[pem.public_key().public_numbers()] = {
+				"key": pem,
+				"_filename": fn
+			}
 
 		# Is it a certificate?
 		if isinstance(pem, Certificate):
-			certificates.append(pem)
+			certificates.append({
+				"cert": pem,
+				"_filename": fn
+			})
 
 	# Process the certificates.
 	domains = { }
-	for cert in certificates:
+	for cert_info in certificates:
+		cert = cert_info["cert"]
+		
 		# What domains is this certificate good for?
 		cert_domains, primary_domain = get_certificate_domains(cert)
-		cert._primary_domain = primary_domain
+		cert_info["_primary_domain"] = primary_domain
 
 		# Is there a private key file for this certificate?
-		private_key = private_keys.get(cert.public_key().public_numbers())
-		if not private_key:
+		private_key_info = private_keys.get(cert.public_key().public_numbers())
+		if not private_key_info:
 			continue
-		cert._private_key = private_key
+		cert_info["_private_key"] = private_key_info
 
 		# Add this cert to the list of certs usable for the domains.
 		for domain in cert_domains:
 			# The primary hostname can only use a certificate mapped
 			# to the system private key.
 			if domain == env['PRIMARY_HOSTNAME']:
-				if cert._private_key._filename != os.path.join(env['STORAGE_ROOT'], 'ssl', 'ssl_private_key.pem'):
+				if cert_info["_private_key"]["_filename"] != os.path.join(env['STORAGE_ROOT'], 'ssl', 'ssl_private_key.pem'):
 					continue
 
-			domains.setdefault(domain, []).append(cert)
+			domains.setdefault(domain, []).append(cert_info)
 
 	# Sort the certificates to prefer good ones.
 	import datetime
 	now = datetime.datetime.utcnow()
 	ret = { }
-	for domain, cert_list in domains.items():
+	for domain, cert_info_list in domains.items():
 		#for c in cert_list: print(domain, c.not_valid_before, c.not_valid_after, "("+str(now)+")", c.issuer, c.subject, c._filename)
-		cert_list.sort(key = lambda cert : (
+		cert_info_list.sort(key = lambda cert_info : (
 			# must be valid NOW
-			cert.not_valid_before <= now <= cert.not_valid_after,
+			cert_info["cert"].not_valid_before <= now <= cert_info["cert"].not_valid_after,
 
 			# prefer one that is not self-signed
-			cert.issuer != cert.subject,
+			cert_info["cert"].issuer != cert_info["cert"].subject,
 
-                        # prefer one that is not our temporary ca
-			"Temporary-Mail-In-A-Box-CA" not in "%s" % cert.issuer.rdns,
+            # prefer one that is not our temporary ca
+			"Temporary-Mail-In-A-Box-CA" not in "%s" % cert_info["cert"].issuer.rdns,
 
 			###########################################################
 			# The above lines ensure that valid certificates are chosen
@@ -116,7 +124,7 @@ def get_ssl_certificates(env):
 
 			# prefer one with the expiration furthest into the future so
 			# that we can easily rotate to new certs as we get them
-			cert.not_valid_after,
+			cert_info["cert"].not_valid_after,
 
 			###########################################################
 			# We always choose the certificate that is good for the
@@ -131,15 +139,15 @@ def get_ssl_certificates(env):
 
 			# in case a certificate is installed in multiple paths,
 			# prefer the... lexicographically last one?
-			cert._filename,
+			cert_info["_filename"],
 
 		), reverse=True)
-		cert = cert_list.pop(0)
+		cert_info = cert_info_list.pop(0)
 		ret[domain] = {
-			"private-key": cert._private_key._filename,
-			"certificate": cert._filename,
-			"primary-domain": cert._primary_domain,
-			"certificate_object": cert,
+			"private-key": cert_info["_private_key"]["_filename"],
+			"certificate": cert_info["_filename"],
+			"primary-domain": cert_info["_primary_domain"],
+			"certificate_object": cert_info["cert"],
 			}
 
 	return ret

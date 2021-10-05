@@ -123,7 +123,7 @@ base = ${LDAP_USERS_BASE}
 #   filter below. If found, the user is authenticated against this dn
 #   (a bind is attempted as that user). The attribute 'mail' is
 #   multi-valued and contains all the user's email addresses. We use
-#   maildrop as the dovecot mailbox address and forbid then from using
+#   maildrop as the dovecot mailbox address and forbid them from using
 #   it for authentication by excluding maildrop from the filter.
 pass_filter = (&(objectClass=mailUser)(mail=%u))
 pass_attrs = maildrop=user
@@ -226,6 +226,7 @@ chmod 0640 /etc/postfix/sender-login-maps-aliases.cf
 # Check whether a destination email address exists, and to perform any
 # email alias rewrites in Postfix.
 tools/editconf.py /etc/postfix/main.cf \
+	smtputf8_enable=no \
 	virtual_mailbox_domains=ldap:/etc/postfix/virtual-mailbox-domains.cf \
 	virtual_mailbox_maps=ldap:/etc/postfix/virtual-mailbox-maps.cf \
 	virtual_alias_maps=ldap:/etc/postfix/virtual-alias-maps.cf \
@@ -240,7 +241,7 @@ bind_dn = ${LDAP_POSTFIX_DN}
 bind_pw = ${LDAP_POSTFIX_PASSWORD}
 version = 3
 search_base = ${LDAP_DOMAINS_BASE}
-query_filter = (&(dc=%s)(businessCategory=mail))
+query_filter = (&(|(dc=%s)(dcIntl=%s))(businessCategory=mail))
 result_attribute = dc
 EOF
 chgrp postfix /etc/postfix/virtual-mailbox-domains.cf
@@ -288,7 +289,6 @@ chmod 0640 /etc/postfix/virtual-mailbox-maps.cf
 # it might have just permitted_senders, skip any records with an
 # empty destination here so that other lower priority rules might match.
 
-
 #
 # This is the ldap version of aliases(5) but for virtual
 # addresses. Postfix queries this recursively to determine delivery
@@ -302,7 +302,7 @@ bind_pw = ${LDAP_POSTFIX_PASSWORD}
 version = 3
 search_base = ${LDAP_USERS_BASE}
 query_filter = (mail=%s)
-result_attribute = maildrop, rfc822MailMember
+result_attribute = maildrop, mailMember
 special_result_attribute = member
 EOF
 chgrp postfix /etc/postfix/virtual-alias-maps.cf

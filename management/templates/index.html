@@ -62,9 +62,37 @@
 	    ol li {
 	       margin-bottom: 1em;
 	    }
-
+          
             .if-logged-in { display: none; }
             .if-logged-in-admin { display: none; }
+
+      /* The below only gets used if it is supported */
+      @media (prefers-color-scheme: dark) {
+        /* Invert invert lightness but not hue */
+        html {
+          filter: invert(100%) hue-rotate(180deg);
+        }
+
+        /* Set explicit background color (necessary for Firefox) */
+        html {
+          background-color: #111;
+        }
+          
+        /* Override Boostrap theme here to give more contrast. The black turns to white by the filter. */
+        .form-control {
+          color: black !important;
+        }          
+
+        /* Revert the invert for the navbar */
+        button, div.navbar {
+          filter: invert(100%) hue-rotate(180deg);
+        }
+          
+        /* Revert the revert for the dropdowns */
+        ul.dropdown-menu {
+          filter: invert(100%) hue-rotate(180deg);
+        }
+      }
         </style>
         <link rel="stylesheet" href="/admin/assets/bootstrap/css/bootstrap-theme.min.css">
     </head>
@@ -96,7 +124,7 @@
                 <li class="dropdown-header">Advanced Pages</li>
                 <li><a href="#custom_dns" onclick="return show_panel(this);">Custom DNS</a></li>
                 <li><a href="#external_dns" onclick="return show_panel(this);">External DNS</a></li>
-                <li><a href="/admin/munin" target="_blank" onclick="if (! new AuthInfo(api_credentials).is_set()) return false">Munin Monitoring</a></li>
+                <li><a href="/admin/munin" target="miabmunin" onclick="if (! new AuthInfo(api_credentials).is_set()) return false">Munin Monitoring</a></li>
                 <li><a href="#postgrey_whitelist" onclick="return show_panel(this);">Postgrey Whitelist</a></li>
               </ul>
             </li>

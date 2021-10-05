@@ -85,7 +85,7 @@ app = Flask(__name__, template_folder=os.path.abspath(os.path.join(os.path.dirna
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
 # Decorator to protect views that require a user with 'admin' privileges.
-def authorized_personnel_only_opt(leeway=0, scheme=None):
+def authorized_personnel_only_opt(leeway=0, scheme=['Bearer']):
 	_leeway = leeway
 	_scheme = scheme
 	def _authorized_personnel_only(viewfunc):
@@ -98,8 +98,8 @@ def authorized_personnel_only_opt(leeway=0, scheme=None):
 
 			try:
 				auth_result = auth_service.authenticate(request, env, oauth_config, leeway=_leeway)
-				if _scheme and auth_result['scheme'] != _scheme:
-					raise ValueError(f'Only {_scheme} authentication accepted')
+				if auth_result['scheme'] not in _scheme:
+					raise ValueError(f'Authentication scheme not accepted')
 				email = auth_result['user_id']
 				privs = auth_result['privs']
 			except ValueError as e:
@@ -154,7 +154,10 @@ def authorized_personnel_only_opt(leeway=0, scheme=None):
 
 authorized_personnel_only = authorized_personnel_only_opt(
 	leeway=0,
-	scheme=None
+	scheme=[
+		'Bearer',
+		'Basic'  # system api key login
+	]
 )
 
 
@@ -261,7 +264,7 @@ def mail_aliases():
 	if request.args.get("format", "") == "json":
 		return json_response(get_mail_aliases_ex(env))
 	else:
-		return "".join(address+"\t"+receivers+"\t"+(senders or "")+"\n" for address, receivers, senders in get_mail_aliases(env))
+		return "".join(address+"\t"+receivers+"\t"+(senders or "")+"\n" for address, receivers, senders, auto in get_mail_aliases(env))
 
 @app.route('/mail/aliases/add', methods=['POST'])
 @authorized_personnel_only
@@ -737,7 +740,7 @@ def oauth_authorization():
 
 	
 @app.route('/oauth-refresh', methods=["POST"])
-@authorized_personnel_only_opt(leeway=30 * 24 * 60 * 60, scheme='Bearer')
+@authorized_personnel_only_opt(leeway=2 * 24 * 60 * 60, scheme=['Bearer'])
 def oauth_refresh():
 	# refresh an access token
 	try:
@@ -772,17 +775,22 @@ def oauth_revoke():
 
 # MUNIN
 
+authorized_personnel_only_via_cookie = authorized_personnel_only_opt(
+	leeway=60 * 30,
+	scheme=["Bearer-cookie"]
+)
+
 @app.route('/munin/')
 @app.route('/munin/<path:filename>')
-@authorized_personnel_only_opt(leeway=60 * 60)
+@authorized_personnel_only_via_cookie
 def munin(filename=""):
-	# Checks administrative access (@authorized_personnel_only) and then just proxies
-	# the request to static files.
+	# Checks administrative access and then just proxies the request
+	# to static files.
 	if filename == "": filename = "index.html"
 	return send_from_directory("/var/cache/munin/www", filename)
 
 @app.route('/munin/cgi-graph/<path:filename>')
-@authorized_personnel_only_opt(leeway=60 * 60)
+@authorized_personnel_only_via_cookie
 def munin_cgi(filename):
 	""" Relay munin cgi dynazoom requests
 	/usr/lib/munin/cgi/munin-cgi-graph is a perl cgi script in the munin package
