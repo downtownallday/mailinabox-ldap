@@ -1,4 +1,8 @@
-from qapy.browser_automation import TestDriver
+from qapy.browser_automation import (
+    TestDriver,
+    TimeoutException,
+    NoSuchElementException
+)
 import sys
 import pyotp
 
@@ -11,8 +15,11 @@ d = TestDriver()
 def rcm_login(d, login, pw, totp_secret):
     '''login to roundcube via oauth'''
     d.start("Login to roudcube via oauth with user/pass/totp")
-    el = d.find_el('#rcmloginoauth', throws=False)
-    if el: el.click()
+    try:
+        el = d.find_el('#rcmloginoauth', throws=True)
+        el.click()
+    except NoSuchElementException as e:
+        d.say_verbose("no roundcube login screen - assuming it redirected to oauth server")
     d.wait_for_el('input[type=password]')
 
     d.start("Login %s", login)
@@ -45,7 +52,7 @@ def rcm_login_via_grant_access(d):
 
 def wait_for_inbox(d):
     d.start("Wait for INBOX")
-    d.wait_for_el('a.logout', must_be_enabled=True, secs=10)
+    d.wait_for_el('a.logout', must_be_enabled=True, secs=20)
 
 def rcm_logout(d):
     ''' logout of roundcube '''
@@ -88,7 +95,8 @@ try:
     #
     d.start("Opening roundcube")
     d.get("/mail/")
-    el = d.wait_for_el('#layout-content, input[type=password]')
+    #el = d.wait_for_el('#layout-content, input[type=password]')
+    el = d.wait_for_el('input[type=password]')
 
     #
     # 1. first-time authorization: requires a login
