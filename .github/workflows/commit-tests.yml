@@ -21,7 +21,11 @@ jobs:
         run: sudo -E tests/system-setup/remote-nextcloud-docker.sh upgrade basic
       - name: test-runner
         run: sudo -E tests/runner.sh -dumpoutput -no-smtp-remote default remote-nextcloud upgrade-basic
-
+      - uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          path: tests/out/box1/**/screenshot.png
+          if-no-files-found: ignore
 
   # Upgrade from upstream install
   upgrade-from-upstream:
@@ -39,4 +43,8 @@ jobs:
         run: sudo -E tests/system-setup/upgrade-from-upstream.sh basic totpuser
       - name: test-runner
         run: sudo -E tests/runner.sh -dumpoutput -no-smtp-remote upgrade-basic upgrade-totpuser default
-
+      - uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          path: tests/out/box2/**/screenshot.png
+          if-no-files-found: ignore
