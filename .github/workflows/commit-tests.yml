@@ -24,8 +24,10 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
+          name: box1-runner-output
           path: tests/out/box1/**/screenshot.png
           if-no-files-found: ignore
+          retention-days: 7
 
   # Upgrade from upstream install
   upgrade-from-upstream:
@@ -46,5 +48,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
+          name: box2-runner-output
           path: tests/out/box2/**/screenshot.png
           if-no-files-found: ignore
+          retention-days: 7
