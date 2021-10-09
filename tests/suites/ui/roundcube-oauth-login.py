@@ -52,7 +52,7 @@ def rcm_login_via_grant_access(d):
 
 def wait_for_inbox(d):
     d.start("Wait for INBOX")
-    d.wait_for_el('a.logout', must_be_enabled=True, secs=20)
+    d.wait_for_el('a.logout', must_be_enabled=True, secs=60)
 
 def rcm_logout(d):
     ''' logout of roundcube '''
