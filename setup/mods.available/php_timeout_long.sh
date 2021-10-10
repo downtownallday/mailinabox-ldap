@@ -21,7 +21,9 @@ BEGIN                       { inblock=0 }
 /^\s*\}\s*$/                { inblock=0; print; next; }
 inblock==1 && /fastcgi_pass\s+php-fpm/ {
                               print "\t\t# setup mod: php_timeout_long";
-                              print "\t\tfastcgi_read_timeout 240;";
+                              print "\t\tfastcgi_read_timeout 240s;";
+                              print "\t\tfastcgi_send_timeout 240s;";
+                              print "\t\tfastcgi_connect_timeout 60s;";
                               print; next;
                             }
                             { print }' \
