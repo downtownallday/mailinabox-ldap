@@ -20,6 +20,7 @@ BEGIN                       { inblock=0 }
 /location.*\/mail\/.*\.php/ { inblock=1; print; next; }
 /^\s*\}\s*$/                { inblock=0; print; next; }
 inblock==1 && /fastcgi_pass\s+php-fpm/ {
+                              print "\t\t# setup mod: php_timeout_long";
                               print "\t\tfastcgi_read_timeout 120;";
                               print; next;
                             }
@@ -27,7 +28,8 @@ inblock==1 && /fastcgi_pass\s+php-fpm/ {
                                 "$fn"> "$tmp"
 
     if [ $dry_run != "true" ] ; then
-        cp "$tmp" "$fn"
+        # only apply if not already applied
+        ! grep "php_timeout_long" "$fn" >/dev/null && cp "$tmp" "$fn"
         rm -f "$tmp"
     else
         echo "cp $tmp $fn"
