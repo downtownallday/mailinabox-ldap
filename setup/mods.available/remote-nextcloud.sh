@@ -149,7 +149,9 @@ remote_nextcloud_handler() {
         
         # prevent nginx from serving any miab-installed nextcloud
         # files and remove owncloud cron job
-        chmod 000 /usr/local/lib/owncloud
+        if [ -d /usr/local/lib/ownCloud ]; then
+            chmod 000 /usr/local/lib/owncloud
+        fi
         rm -f /etc/cron.d/mailinabox-nextcloud
     fi
     
