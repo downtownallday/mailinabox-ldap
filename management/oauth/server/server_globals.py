@@ -16,5 +16,6 @@ G = my_globals_cls()
 
 def init_server_globals(storage_inst, issuer):
     G.storage = storage_inst
-    G.TOKEN_ISSUER = issuer
+    if issuer:
+        G.TOKEN_ISSUER = issuer
 
