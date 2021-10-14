@@ -138,8 +138,8 @@ class MiabClientsMixin(Storage):
 					'OAUTH2_TOKEN_EXPIRES_IN': {
 						# access_token lifetime per grant_type
 						#'authorization_code': 60 * 60 * 24
-						'authorization_code': 60 * (1 if self.debug else 15),
-						'refresh_token': 60 * (1 if self.debug else 15),
+						'authorization_code': 60 * (5 if self.debug else 15),
+						'refresh_token': 60 * (5 if self.debug else 15),
 					},
 					'OAUTH2_REFRESH_TOKEN_EXPIRES_IN': {
 						# refresh_token lifetime per grant_type
