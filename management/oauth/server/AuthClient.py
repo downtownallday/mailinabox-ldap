@@ -81,6 +81,8 @@ class AuthClient(ClientMixin):
 					self.token_policy[key].update(token_policy[key])
 				else:
 					self.token_policy[key] = token_policy[key]
+					
+		log.debug("token_policy for %s: %r" % (self.client_id, self.token_policy))
 
 		def no_jwt_private_claims(client, grant_type, user, scope):
 			return {}
@@ -183,28 +185,37 @@ class AuthClient(ClientMixin):
 		return perm or False
 
 	def get_token_policy(self, name, default_value=None):
+		debug_token_policy = False
 		if type(name) is str:
 			name = [ name ]
+
+		def logv(key, v):
+			if debug_token_policy:
+				log.debug('token_policy: %r: %s=%s', name, key, v, {
+					'client': self.client_id
+				})
 			
 		v = self.token_policy
 		for key in name:
 			v = v.get(key, None)
 			if v is None:
 				if default_value is not None:
+					logv(key, "%s (default)" % default_value)
 					return default_value
 				
 				if len(name)==2 and name[0]=='OAUTH2_TOKEN_EXPIRES_IN':
-					return BearerToken.GRANT_TYPES_EXPIRES_IN.get(key, BearerToken.DEFAULT_EXPIRES_IN)
+					v = BearerToken.GRANT_TYPES_EXPIRES_IN.get(key, BearerToken.DEFAULT_EXPIRES_IN)
+					logv(key, v)
+					return v
 
 				elif len(name)==2 and name[0]=='OAUTH2_REFRESH_TOKEN_EXPIRES_IN':
-					return BearerToken.GRANT_TYPES_EXPIRES_IN.get(key, BearerToken.DEFAULT_EXPIRES_IN) * 2
+					v = BearerToken.GRANT_TYPES_EXPIRES_IN.get(key, BearerToken.DEFAULT_EXPIRES_IN) * 2
+					logv(key, v)
+					return v
 					
 
 				raise ValueError("Unknown token policy %s" % name)
-				
-		# log.debug(
-		# 	'policy %s: %s (client)' % (".".join(name), v),
-		# 	{ 'client': self.client_id }
-		# )
+
+		logv(key, v)
 		return v
 	

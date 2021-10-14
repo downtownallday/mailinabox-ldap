@@ -11,7 +11,7 @@ class MyRefreshTokenGrant(grants.RefreshTokenGrant):
 	TOKEN_ENDPOINT_AUTH_METHODS = [
 		'client_secret_basic',
 		'client_secret_post',
-		'none',
+#		'none',
 	]
 	
 	INCLUDE_NEW_REFRESH_TOKEN = True
@@ -39,6 +39,37 @@ class MyRefreshTokenGrant(grants.RefreshTokenGrant):
 		''' make sure user exists and is not expired / locked out, etc '''
 		return G.storage.query_user(credential.user_id)
 
+	def issue_token(self, user, credential):
+		# overrides base class to provide correct expires_in and
+		# per-client INCLUDE_NEW_REFRESH_TOKEN policy
+		#
+		# `user` is an authenticated user (see MiabUsersMixin)
+		# `credential` is a Token object containing the old credentials
+		client = G.storage.query_client(credential.get_client_id())
+		expires_in = client.get_token_policy(
+			['OAUTH2_TOKEN_EXPIRES_IN', 'refresh_token' ],
+			credential.get_expires_in()
+		)
+		include_new_refresh_token = client.get_token_policy(
+			'INCLUDE_NEW_REFRESH_TOKEN',
+			self.INCLUDE_NEW_REFRESH_TOKEN
+		)
+			
+		#expires_in = credential.get_expires_in()
+		scope = self.request.scope
+		if not scope:
+			scope = credential.get_scope()
+
+		token = self.generate_token(
+			user=user,
+			expires_in=expires_in,
+			scope=scope,
+			#include_refresh_token=self.INCLUDE_NEW_REFRESH_TOKEN,
+			include_refresh_token=include_new_refresh_token,
+		)
+		return token
+
+		
 	def revoke_old_credential(self, credential):
 		client = G.storage.query_client(credential.get_client_id())
 		delay = 0
