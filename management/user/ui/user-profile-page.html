@@ -58,122 +58,129 @@
           -- logged in - show accordion menu
           -->
         <div v-else class="mt-3">
-          <p>
-            Hello, {{ me.name }}. On this page you can modify your settings.
-          </p>
+          <h3>
+            <em>Hello, {{ me.name }}! On this page you can manage your account.</em>
+          </h3>
+          
 
-
-          <div class="accordion mt-2">
+          <div class="accordion ml-2 mr-2 mt-4">
             
             <!--
               -- accordion: change password
               -->
-            <div class="card mb-3">
-              <div class="card-header text-center">
-                <button class="btn btn-primary w-75" @click="set_tab('change_password')">
-                  <!-- bi name="chevron-bar-expand"></bi --> Change your password
-                </button>
+            <div class="mb-2 pb-2 border-bottom border-primary">
+              <div class="d-flex">
+                <div>
+                  <h4 class="text-primary">Change your password</h4>
+                </div>
+                <div class="ml-auto">
+                  <button class="btn btn-primary" style="width:10em" @click="set_tab('change_password')">
+                    <span v-if="cur_tab=='change_password'">Collapse</span>
+                    <span v-else>Expand</span>
+                  </button>
+                </div>
               </div>
               
-              <div :class="{collapse:true, show:cur_tab=='change_password'}">
-                <div class="card-body">
-                  
-                  <div class="alert alert-danger mt-2" v-if="change_password_error">
-                    {{ change_password_error }}
+              <div :class="{collapse:true, show:cur_tab=='change_password', 'border-top':true, 'mt-2':true, 'pt-2':true}">
+                <div class="alert alert-danger mt-2" v-if="change_password_error">
+                  {{ change_password_error }}
+                </div>
+                <div class="alert alert-success mt-2" v-if="change_password_success">
+                  Success - your password was changed
+                </div>
+                
+                <div class="row align-items-center">
+                  <div class="col-3 text-right">
+                    Current password:
                   </div>
-                  <div class="alert alert-success mt-2" v-if="change_password_success">
-                    Success - your password was changed
+                  <div>
+                    <input class="form-control" type="password" v-model="old_password">
                   </div>
-                  
-                  <div class="row align-items-center">
-                    <div class="col-3 text-right">
-                      Current password:
-                    </div>
-                    <div>
-                      <input class="form-control" type="password" v-model="old_password">
-                    </div>
-                    <div class="text-danger ml-1" v-if="old_password_error">
-                      <bi name="exclamation-circle"></bi> {{ old_password_error }}
-                    </div>
+                  <div class="text-danger ml-1" v-if="old_password_error">
+                    <bi name="exclamation-circle"></bi> {{ old_password_error }}
                   </div>
-                  <div class="row align-items-center mt-2">
-                    <div class="col-3 text-right">
-                      New password:
-                    </div>
-                    <div>
-                      <input class="form-control" type="password" v-model="new_password">
-                    </div>
-                    <div class="text-danger ml-1" v-if="new_password_error">
-                      <bi name="exclamation-circle"></bi> {{ new_password_error }}
-                    </div>
-
+                </div>
+                <div class="row align-items-center mt-2">
+                  <div class="col-3 text-right">
+                    New password:
                   </div>
-                  
-                  <div class="text-center mt-4">
-                    <button class="btn btn-success" @click="change_password">
+                  <div>
+                    <input class="form-control" type="password" v-model="new_password">
+                  </div>
+                  <div class="text-danger ml-1" v-if="new_password_error">
+                    <bi name="exclamation-circle"></bi> {{ new_password_error }}
+                  </div>
+                </div>
+                
+                <div class="row mt-4">
+                  <div class="col-3"></div>
+                  <div></div>
+                  <div class="ml-1">
+                    <button class="btn btn-success" style="width:10em" @click="change_password">
                       Change
                     </button>
                   </div>
-
                 </div>
+                
               </div>
             </div>
-
+            
 
             <!--
               -- accordion: disable MFA
               -->
-            <div class="card mb-3" v-if="me.enabled_mfa.length > 0">
-              <div class="card-header text-center">
-                <button class="btn btn-primary w-75" @click="set_tab('disable_mfa')">
-                  Disable Two-factor authentication
-                </button>
+            <div class="mb-2 pb-2 border-bottom border-primary" v-if="me.enabled_mfa.length > 0">
+              <div class="d-flex">
+                <div>
+                  <h4 class="text-primary">Disable Two-Factor Authentication</h4>
+                  <em>Two-factor authentication is active for your account</em>
+                </div>
+                <div class="ml-auto">
+                  <button class="btn btn-primary" style="width:10em" @click="set_tab('disable_mfa')">
+                    <span v-if="cur_tab=='disable_mfa'">Collapse</span>
+                    <span v-else>Expand</span>
+                  </button>
+                </div>
               </div>
               
-              <div :class="{collapse:true, show:cur_tab=='disable_mfa'}">
-                <div class="card-body">
-                  <h4>Two-factor authentication is active for your account</h4>
-                      
-                  <ul class="ml-2">
-                    <li v-for="mfa in me.enabled_mfa">
-                      <span class="text-uppercase">{{ mfa.type }}</span> on {{ friendly_mfa_label(mfa.label, true) }}
-                    </li>
-                  </ul>
-                        
-                  <div class="alert alert-danger mt-2" v-if="mfa_error">
-                    {{ mfa_error }}
+              <div :class="{collapse:true, show:cur_tab=='disable_mfa', 'border-top':true, 'pt-1':true}">
+                <div v-for="mfa in me.enabled_mfa" class="font-weight-bold">
+                  <span class="text-uppercase">{{ mfa.type }}</span> {{ friendly_mfa_label(mfa.label, true) }}
+                </div>
+                
+                <div class="alert alert-danger mt-2" v-if="mfa_error">
+                  {{ mfa_error }}
+                </div>
+                
+                <div class="mt-3">
+                  You must re-authenticate to disable two-factor authentication. Enter your credentials below:
+                </div>
+                
+                <div class="row align-items-center mt-2">
+                  <div class="col-2 text-right text-nowrap">
+                    Password:
                   </div>
-                  
-                  <div class="mt-3">
-                    You must re-authenticate to disable two-factor authentication. Enter your credentials below:
+                  <div class="col-auto pl-0">
+                    <input class="form-control" type="password" v-model="mfa_disable_password">
                   </div>
-
-                  <div class="row align-items-center mt-2">
-                    <div class="col-2 text-right text-nowrap">
-                      Password:
-                    </div>
-                    <div class="col-auto pl-0">
-                      <input class="form-control" type="password" v-model="mfa_disable_password">
-                    </div>
+                </div>
+                
+                <div v-if="me.enabled_mfa[0].type == 'totp'" class="row align-items-center mt-2">
+                  <div class="col-2 text-right text-nowrap">
+                    Code:
                   </div>
-                  
-                  <div v-if="me.enabled_mfa[0].type == 'totp'" class="row align-items-center mt-2">
-                    <div class="col-2 text-right text-nowrap">
-                      Code:
-                    </div>
-                    <div class="col-auto pl-0">
-                      <input type="text" class="w-100 form-control" v-model="mfa_disable_totp_token" placeholder="6-digit code">
-                    </div>
-                    <div class="col-6 text-muted">
-                      If you no longer have access to the device to generate codes, you must contact an administrator to disable two-factor authentication for you.
-                    </div>
+                  <div class="col-auto pl-0">
+                    <input type="text" class="w-100 form-control" v-model="mfa_disable_totp_token" placeholder="6-digit code">
                   </div>
-
-                  <div class="mt-3 text-center">
-                    <button class="btn btn-danger mt-3" @click="disable_mfa">
-                      Disable
-                    </button>
+                  <div class="col-6 text-muted">
+                    If you no longer have access to the device to generate codes, you must contact an administrator to disable two-factor authentication for you.
                   </div>
+                </div>
+                
+                <div class="mt-3">
+                  <button class="btn btn-danger" style="min-width:10em" @click="disable_mfa">
+                    Disable
+                  </button>
                 </div>
               </div>
             </div>
@@ -182,57 +189,61 @@
             <!--
               -- accordion: enable MFA
               -->
-            <div v-else class="card mb-3">
-              <div class="card-header text-center">
-                <button class="btn btn-primary w-75" @click="set_tab('enable_mfa')">
-                  Enable Two-Factor Authentication
-                </button>
+            <div v-else class="mb-2 pb-2 border-bottom border-primary">
+              <div class="d-flex">
+                <div>
+                  <h4 class="text-primary">Enable Two-Factor Authentication</h4>
+                  <em>Two-factor authentication is disabled for your account</em>
+                </div>
+                <div class="ml-auto">
+                  <button class="btn btn-primary" style="width:10em" @click="set_tab('enable_mfa')">
+                    <span v-if="cur_tab=='enable_mfa'">Collapse</span>
+                    <span v-else>Expand</span>
+                  </button>
+                </div>
               </div>
               
-              <div :class="{collapse:true, show:cur_tab=='enable_mfa'}">
-                <div class="card-body">
-                  <h4>Two-factor authentication is disabled for your account</h4>
-                      
-                  <p>When two-factor authentication is enabled, you will be prompted to enter a six digit code from an authenticator app (usually on your phone) when you log in. It will help protect your account, especially from easily-guessed or stolen passwords.</p>
-                        
-                  <h5>Setup Instructions</h5>
-                        
-                  <ol>
-                    <li>
-                      <div>Install <a href="https://freeotp.github.io/" target="_blank">FreeOTP</a> or <a href="https://www.pcworld.com/article/3225913/what-is-two-factor-authentication-and-which-2fa-apps-are-best.html" target="_blank">any other two-factor authentication app</a> that supports TOTP.</div>
-                    </li>
-                    
-                    <li class="pb-4">
-                      <div>Scan the QR code in the app or directly enter the secret into the app:</div>
-                      
-                      <img :src="'data:image/png;base64,' + me.new_mfa.totp.qr_code_base64" style="max-width:22em">
-                      <div class="pl-4">Secret: {{ me.new_mfa.totp.secret }}</div>
-                    </li>
-                    
-                    
-                    <li class="pb-2">
-                      <div>Optionally, give your device a label so that you can remember what device you set it up on:</div>
-                      <input type="text" class="form-control" placeholder="my phone" v-model="totp_label"/>
-                    </li>
-                    
-                    <li>
-                      <div>Use the app to generate your first six-digit code and enter it here:</div>
-                      <input type="text" class="form-control" placeholder="6-digit code" v-model="totp_token"/>
-                    </li>
-                  </ol>
+              <div :class="{collapse:true, show:cur_tab=='enable_mfa', 'border-top':true}">
+                <p>When two-factor authentication is enabled, you will be prompted to enter a six digit code from an authenticator app (usually on your phone) when you log in. It will help protect your account, especially from easily-guessed or stolen passwords.</p>
+                
+                <h5>Setup Instructions</h5>
+                
+                <ol>
+                  <li>
+                    <div>Install <a href="https://freeotp.github.io/" target="_blank">FreeOTP</a> or <a href="https://www.pcworld.com/article/3225913/what-is-two-factor-authentication-and-which-2fa-apps-are-best.html" target="_blank">any other two-factor authentication app</a> that supports TOTP.</div>
+                  </li>
                   
-                  <div class="alert alert-danger mt-2" v-if="mfa_error">
-                    {{ mfa_error }}
-                  </div>
-                  <div class="text-center">
-                    <button class="btn btn-success" @click="enable_mfa_totp">Enable</button>
-                  </div>
+                  <li class="pb-4">
+                    <div>Scan the QR code in the app or directly enter the secret into the app:</div>
+                    
+                    <img :src="'data:image/png;base64,' + me.new_mfa.totp.qr_code_base64" style="max-width:22em">
+                    <div class="pl-4">Secret: {{ me.new_mfa.totp.secret }}</div>
+                  </li>
+                  
+                  
+                  <li class="pb-2">
+                    <div>Optionally, give your device a label so that you can remember what device you set it up on:</div>
+                    <input type="text" class="form-control" placeholder="my phone" v-model="totp_label"/>
+                  </li>
+                  
+                  <li class="pb-2">
+                    <div>Use the app to generate your first six-digit code and enter it here:</div>
+                    <input type="text" class="form-control" placeholder="6-digit code" v-model="totp_token"/>
+                  </li>
+                  
+                  <li>
+                    <button class="btn btn-success" style="min-width:10em" @click="enable_mfa_totp">Click here to enable two-factor authentication
+                    </button>
+                  </li>
+                </ol>
+                
+                <div class="alert alert-danger mt-2" v-if="mfa_error">
+                  {{ mfa_error }}
                 </div>
               </div>
             </div>
-            
           </div>
-        </div>
+            
       </template>
       
     </page-layout>

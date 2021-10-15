@@ -155,7 +155,7 @@ export default new Vue({
 
 
         friendly_mfa_label: function(label, quoted) {
-            if (!label) return '[unnamed device]';
+            if (!label) return '(not labled)';
             return quoted ? '"'+label+'"' : label;
         },
         
