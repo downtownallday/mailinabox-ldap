@@ -173,10 +173,10 @@ export default new Vue({
                 
             if (this.me.enabled_mfa[0].type == 'totp') {
                 if (this.mfa_disable_totp_token.trim() == '') {
-                    var label=this.friendly_mfa_label(
-                        this.me.enabled_mfa[0].label
-                    );
-                    this.mfa_error = `Please enter a 6-digit code from your authenticator app (hint: ${label})`;
+                    var hint='';
+                    if (this.me.enabled_mfa[0].label)
+                        hint=` (hint: ${this.friendly_mfa_label(this.me.enabled_mfa[0].label)})`;
+                    this.mfa_error = `Please enter a 6-digit code from your authenticator app${hint}`;
                     return;
                 }
                 request_headers['X-Auth-Token'] = this.mfa_disable_totp_token;

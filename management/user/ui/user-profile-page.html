@@ -74,9 +74,9 @@
                   <h4 class="text-primary">Change your password</h4>
                 </div>
                 <div class="ml-auto">
-                  <button class="btn btn-primary" style="width:10em" @click="set_tab('change_password')">
-                    <span v-if="cur_tab=='change_password'">Collapse</span>
-                    <span v-else>Expand</span>
+                  <button class="btn btn-primary" style="width:10em" @click="set_tab('change_password')" aria-label="expand password">
+                    <template v-if="cur_tab=='change_password'">Collapse</template>
+                    <template v-else>Expand</template>
                   </button>
                 </div>
               </div>
@@ -116,7 +116,7 @@
                   <div class="col-3"></div>
                   <div></div>
                   <div class="ml-1">
-                    <button class="btn btn-success" style="width:10em" @click="change_password">
+                    <button class="btn btn-success" style="width:10em" @click="change_password" aria-label="change password">
                       Change
                     </button>
                   </div>
@@ -136,9 +136,9 @@
                   <em>Two-factor authentication is active for your account</em>
                 </div>
                 <div class="ml-auto">
-                  <button class="btn btn-primary" style="width:10em" @click="set_tab('disable_mfa')">
-                    <span v-if="cur_tab=='disable_mfa'">Collapse</span>
-                    <span v-else>Expand</span>
+                  <button class="btn btn-primary" style="width:10em" @click="set_tab('disable_mfa')" aria-label="expand disable 2fa">
+                    <template v-if="cur_tab=='disable_mfa'">Collapse</template>
+                    <template v-else>Expand</template>
                   </button>
                 </div>
               </div>
@@ -178,7 +178,7 @@
                 </div>
                 
                 <div class="mt-3">
-                  <button class="btn btn-danger" style="min-width:10em" @click="disable_mfa">
+                  <button class="btn btn-danger" style="min-width:10em" @click="disable_mfa" aria-label="disable 2fa">
                     Disable
                   </button>
                 </div>
@@ -196,9 +196,9 @@
                   <em>Two-factor authentication is disabled for your account</em>
                 </div>
                 <div class="ml-auto">
-                  <button class="btn btn-primary" style="width:10em" @click="set_tab('enable_mfa')">
-                    <span v-if="cur_tab=='enable_mfa'">Collapse</span>
-                    <span v-else>Expand</span>
+                  <button class="btn btn-primary" style="width:10em" @click="set_tab('enable_mfa')" aria-label="expand enable 2fa">
+                    <template v-if="cur_tab=='enable_mfa'">Collapse</template>
+                    <template v-else>Expand</template>
                   </button>
                 </div>
               </div>
@@ -232,7 +232,7 @@
                   </li>
                   
                   <li>
-                    <button class="btn btn-success" style="min-width:10em" @click="enable_mfa_totp">Click here to enable two-factor authentication
+                    <button class="btn btn-success" style="min-width:10em" @click="enable_mfa_totp" aria-label="enable 2fa">Click here to enable two-factor authentication
                     </button>
                   </li>
                 </ol>

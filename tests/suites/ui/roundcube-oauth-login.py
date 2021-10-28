@@ -3,8 +3,9 @@ from qapy.browser_automation import (
     TimeoutException,
     NoSuchElementException
 )
+import auth
+import user_profile
 import sys
-import pyotp
 
 login = sys.argv[1]
 pw = sys.argv[2]
@@ -20,22 +21,7 @@ def rcm_login(d, login, pw, totp_secret):
         el.click()
     except NoSuchElementException as e:
         d.say_verbose("no roundcube login screen - assuming it redirected to oauth server")
-    d.wait_for_el('input[type=password]')
-
-    d.start("Login %s", login)
-    d.find_el('input[type=email]').send_text(login)
-    d.find_el('input[type=password]').send_text(pw)
-    d.find_text('Login', tag='button', exact=True) \
-     .click()
-
-    if totp_secret:
-        d.wait_for_text('enter the six-digit code', exact=False)
-        el = d.find_el('input[type=text]') 
-        totp=pyotp.TOTP(totp_secret);
-        code = totp.now()
-        el.send_text(code)
-        d.find_text('Login', tag='button', exact=True) \
-         .click()  
+    return auth.user_login(d, login, pw, totp_secret)
 
 def rcm_login_via_grant_access(d):
     '''log into roundcube when we're already logged into the authorization
@@ -63,31 +49,8 @@ def rcm_logout(d):
         el.click()
         d.wait_for_el('#rcmloginoauth')
 
-def enable_totp(d):
-    '''browser must be at the profile page (already logged in)
 
-       returns the TOTP secret
-    '''
 
-    d.start("Enable TOTP")
-    # open two-factor accordion
-    el = d.find_text('two-factor authentication',exact=False, tag='button') \
-          .click()
-    # extract the secret
-    secret = d.find_text('Secret:', exact=False).content().split(':')[1].strip()
-    d.say("got totp secret: %s", secret)
-
-    # enable
-    totp=pyotp.TOTP(secret);
-    code = totp.now()
-    d.find_el("input[placeholder='6-digit code']") \
-     .send_text(code)
-    el.find_text('Enable', tag='button', exact=True) \
-      .click() \
-      .wait_for_text('two-factor authentication is active', exact=False)
-
-    return secret
-    
 
 try:
     #
@@ -95,7 +58,6 @@ try:
     #
     d.start("Opening roundcube")
     d.get("/mail/")
-    #el = d.wait_for_el('#layout-content, input[type=password]')
     el = d.wait_for_el('input[type=password]')
 
     #
@@ -115,40 +77,29 @@ try:
     rcm_logout(d)
 
     #
-    # 3. enable TOTP, user is already logged into authorization server
+    # 3. enable TOTP: user is already logged into authorization
+    # server. After enabled, ensure user is logged out so a TOTP token
+    # is required for the next login
     #
-    d.say("3. Enable TOTP, then fresh login")
-    d.start("Click oauth link")
-    el = d.find_el('#rcmloginoauth') \
-          .click() \
-          .wait_for_el('a[target=profile]')
-
-    d.start("Click user profile link") # opens new tab
-    handle = d.get_current_window_handle()
-    el = el.click()
-    handles = d.get_window_handles()
-    assert len(handles) == 2
-    d.switch_to_window(handles[1])
-    d.wait_for_text('two-factor authentication',exact=False, tag='button')
-    
-    secret = enable_totp(d)
-    d.start("Logout user at authorization server")
-    d.find_el('a[href="user/logout"]') \
-     .click() \
-     .wait_for_text('Goodbye')
-
-    #d.close() # user-profile tab
-    d.switch_to_window(handle)
+    d.say("3. Fresh login, then Enable TOTP")
+    user_profile.open_profile_page(d, login, pw, None)
+    secret = user_profile.enable_totp(d)
+    auth.user_logout(d)
 
     # 4. re-open roundcube and login with user/pass/totp
     d.start("Open roundcube")
-    d.get('/mail/') \
-     .wait_for_el('#rcmloginoauth, input[type=password]')
+    d.get('/mail/')
+    d.wait_for_el('#rcmloginoauth, input[type=password]')
 
-    rcm_login(d, login, pw, secret)
+    totp_last_code = rcm_login(d, login, pw, secret)
     wait_for_inbox(d)
     rcm_logout(d)
-    
+
+    # 5. disable TOTP
+    d.say("4. Disable TOTP")
+    user_profile.open_profile_page(d, None, None, None)
+    user_profile.disable_totp(d, login, pw, secret, totp_last_code)
+    auth.user_logout(d)
 
     #
     # done

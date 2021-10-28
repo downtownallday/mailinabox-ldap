@@ -220,10 +220,10 @@ class TestDriver(object):
             if throws: raise e
             else: return None
 
-    def wait_for_text(self, text, tag='*', secs=5, exact=False, throws=True):
+    def wait_for_text(self, text, tag='*', secs=5, exact=False, throws=True, case_sensitive=False):
         self.say_verbose("wait for text '%s'", text)
         def test_fn(driver):
-            return self.find_text(text, tag=tag, exact=exact, throws=False, quiet=True)
+            return self.find_text(text, tag=tag, exact=exact, throws=False, quiet=True, case_sensitive=case_sensitive)
         wait = WebDriverWait(self.driver, secs, ignored_exceptions= (
             NoSuchElementException
         ))
@@ -245,11 +245,11 @@ class TestDriver(object):
             if throws: raise e
             else: return None
 
-    def find_els(self, css_selector, throws=True):
+    def find_els(self, css_selector, throws=True, displayed=False):
         self.say_verbose("find elements: '%s'", css_selector)
         try:
             els = self.driver.find_elements(By.CSS_SELECTOR, css_selector)
-            return [ ElWrapper(self, el) for el in els ]
+            return [ ElWrapper(self, el) for el in els if not displayed or el.is_displayed() ]
         except (IndexError, NoSuchElementException) as e:
             if throws: raise e
             else: return None
@@ -301,7 +301,10 @@ class TestDriver(object):
     def raise_error(self, exception):
         self.say("Failure!")
         self.save_screenshot('screenshot.png', ignore_errors=False)
-        exception.msg = "Error during: %s %s" % (self.last_start(), exception.msg)
+        if hasattr(exception, 'msg'):
+            exception.msg = "Error during '%s': %s" % (self.last_start(), exception.msg)
+        else:
+            exception.msg = "Error during '%s'" % self.last_start()
         raise exception
 
     
@@ -327,11 +330,11 @@ class ElWrapper(object):
             if throws: raise e
             else: return None
 
-    def find_els(self, css_selector, throws=True):
+    def find_els(self, css_selector, throws=True, displayed=False):
         self.say_verbose("find elements: '%s'", css_selector)
         try:
             els = self.el.find_elements(By.CSS_SELECTOR, css_selector)
-            return [ ElWrapper(self.driver, el) for el in els ]
+            return [ ElWrapper(self.driver, el) for el in els if not displayed or el.is_displayed() ]
         except (IndexError, NoSuchElementException) as e:
             if throws: raise e
             else: return None
