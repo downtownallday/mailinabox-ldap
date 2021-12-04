@@ -70,7 +70,7 @@ install_packages() {
         pkgs="$(sed 's/slapd//g' <<< "$pkgs")"
 
         # ignore packages that are shell variables (${NAME})
-        pkgs="$(sed 's/^\$\{[^\}]*\}$//g' <<< "$pkgs")"
+        pkgs="$(sed -E 's/(^|\s)\$\{[^\}]*\}($|\s)//g' <<< "$pkgs")"
         
         if [ ! -z "$pkgs" ]; then
             echo "install: $pkgs"
