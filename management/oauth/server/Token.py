@@ -83,14 +83,14 @@ class Token(TokenMixin):
 		return self.expires_in
 
 	def expire_from_now(self, sec):
-		''' set the access_token and refresh_token expire times to
+		''' set the access_token and refresh_token expire times to at-most
 		    `sec` seconds from now
 
 		'''
 		now = int(time.time())
 		new_expires_in = (now - self.issued_at) + sec
-		self.expires_in = min(self.expires_in, new_expires_in)
-		self.refresh_expires_in = self.expires_in
+		self.expires_in = new_expires_in
+		self.refresh_expires_in = min(self.refresh_expires_in, self.expires_in)
 		
 	def get_scope(self):
 		''' required by Authlib ResourceProtector '''
