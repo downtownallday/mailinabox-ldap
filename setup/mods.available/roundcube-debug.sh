@@ -23,5 +23,6 @@ php tools/editconf.php $CONF config \
     'session_debug' 'true' \
     'log_logins' 'true' \
     'log_errors' 'true' \
-    'per_user_logging' 'false'
+    'per_user_logging' 'false' \
+    'session_lifetime' '2'
 
