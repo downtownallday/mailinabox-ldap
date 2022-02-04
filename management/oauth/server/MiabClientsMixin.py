@@ -151,6 +151,8 @@ class MiabClientsMixin(Storage):
 					'OAUTH2_JWT_TOKENS': jwt_tokens
 				},
 
+				# TODO: remove revoke_delay once https://github.com/roundcube/roundcubemail/issues/8436 is fixed
+
 				jwt_private_claims_fn = jwt_private_claims
 			)
 
