@@ -301,7 +301,7 @@ roundcube_carddav_contact_exists() {
 
 roundcube_dump_contacts() {
     local db="${1:-$STORAGE_ROOT/mail/roundcube/roundcube.sqlite}"
-    local cols="${2:-name,cuid}"
+    local cols="${2:-name,email,cuid}"
     sqlite3 "$db" "select $cols FROM carddav_contacts"
 }
 

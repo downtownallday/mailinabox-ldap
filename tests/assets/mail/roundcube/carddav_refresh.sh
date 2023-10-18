@@ -80,7 +80,7 @@ if ($auth['valid'] && !$auth['abort']
 
 
 // ----------------------------------------------------
-// Get the user id (see deluser.sh)
+// Get the roundcube user id (see deluser.sh)
 // ----------------------------------------------------
 $host = $auth['host']; # can be a url (eg: ssl://localhost)
 $host_url = parse_url($host);
@@ -91,6 +91,7 @@ $user = rcube_user::query($auth['user'], $host);
 if (!$user) {
        _die("User not found auth[host]=" . $auth['host'] . " host=" . $host . "\n");
 }
+printf("roundcube user id: %s\n", $user->ID);
    
 
 // ----------------------------------------------------
@@ -98,6 +99,7 @@ if (!$user) {
 // ----------------------------------------------------
 
 require_once('plugins/carddav/carddav.php');
+require_once('plugins/carddav/src/Frontend/AddressbookManager.php');
 
 try {
    $c = new carddav(rcube_plugin_api::get_instance());
@@ -114,8 +116,7 @@ try {
 
 
 // -------------------------------------------------------------
-// Set the last_updated field for addressbooks to an old date.
-// That will force a sync/update
+// Connect to the roundcube database
 // -------------------------------------------------------------
 $db = $rcmail->get_dbh();
 $db->db_connect('w');
@@ -124,24 +125,19 @@ if (!$db->is_connected() || $db->is_error()) {
 }
 print "db connected\n";
 
-// NOTE: checking (flags 0x21)=1 is checking 'active' is true
-
-$db->query("update " . $db->table_name('carddav_addressbooks') . " set last_updated=? WHERE (flags & 0x21)=1 and account_id=" . $user->ID, 1636996198);
-print "update made\n";
-if ($db->is_error()) {
-  _die("DB error occurred: " . $db->is_error());
-}
-
 
 // ------------------------------------------------------
 // Update/sync all out-of-date address books
 // ------------------------------------------------------
 
 // first get all addressbook ids
+// asserting (flags 0x21)=1 is checking that 'active' is true
+
 $dbid=array();
-$sql_result = $db->query('SELECT id FROM ' .
-           $db->table_name('carddav_addressbooks') .
-           ' WHERE (flags & 0x21)=1');
+$sql_result = $db->query(
+    'SELECT carddav_addressbooks.id FROM ' . $db->table_name('carddav_addressbooks') .
+    ' JOIN carddav_accounts ON carddav_addressbooks.account_id = carddav_accounts.id' .
+    ' WHERE (carddav_addressbooks.flags & 0x21)=1 AND user_id='.$user->ID );
 if ($db->is_error()) {
   _die("DB error occurred: " . $db->is_error());
 }
@@ -156,10 +152,17 @@ while ($row = $db->fetch_assoc($sql_result)) {
 // see: carddav::abooksDB
 $c = new carddav(rcube_plugin_api::get_instance());
 $c->init();
+$c->afterLogin();
+
+$abMgr = new MStilkerich\RCMCardDAV\Frontend\AddressbookManager();
 
 foreach($dbid as $id) {
-  // getAddressBook() will force an re-sync
-  $abook = $c->getAddressbook(["id"=>"carddav_$id","writeable"=>false]);
-  print("success\n");
+  try {
+    $abook = $abMgr->getAddressbook($id);
+    $abMgr->resyncAddressbook($abook);
+    printf("success: %s\n", $id);
+  } catch (Exception $e) {
+      printf("failed: %s: %s\n", $id, $e->getMessage());
+  }
 }
 
