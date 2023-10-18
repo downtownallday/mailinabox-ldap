@@ -222,7 +222,6 @@ cat > ${RCM_PLUGIN_DIR}/carddav/config.inc.php <<EOF;
 <?php
 /* Do not edit. Written by Mail-in-a-Box. Regenerated on updates. */
 \$prefs['_GLOBAL']['hide_preferences'] = true;
-\$prefs['_GLOBAL']['suppress_version_warning'] = true;
 \$prefs['_GLOBAL']['pwstore_scheme'] = 'plain';
 \$prefs['ownCloud'] = array(
 	 'name'         =>  'ownCloud',
@@ -236,7 +235,6 @@ cat > ${RCM_PLUGIN_DIR}/carddav/config.inc.php <<EOF;
 			'readonly'     =>  false,
 			'refresh_time' => '02:00:00',
 			'fixed'        =>  [ 'username','password' ],
-			'preemptive_auth' => true,
 			'hide'        =>  false,
 		],
 	],

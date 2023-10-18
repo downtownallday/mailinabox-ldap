@@ -80,7 +80,6 @@ configure_roundcube() {
 	 'readonly'     =>  false,
 	 'refresh_time' => '02:00:00',
 	 'fixed'        =>  [ 'accountname', 'discovery_url', 'username', 'password', 'ssl_noverify' ],
-	 'preemptive_auth' => true,
 	 'hide'        =>  false,
 	 'use_categories' => false,
 ];
