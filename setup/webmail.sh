@@ -106,6 +106,14 @@ if [ $needs_update == 1 ]; then
 	tar -C ${RCM_PLUGIN_DIR} -zxf /tmp/carddav.tar.gz
 	rm -f /tmp/carddav.tar.gz
 
+	# nuke carddav contacts cache when upgrading from carddav v4 -> v5
+	if [ -e $STORAGE_ROOT/mail/roundcube/roundcube.sqlite -a "$(sqlite3 $STORAGE_ROOT/mail/roundcube/roundcube.sqlite 'select count(*) from carddav_migrations where filename="0017-accountentities"')" = "0" ]; then
+		# we're upgrading from carddav v4 to v5 - start with a fresh cache
+		say_verbose "Delete carddav contacts cache"
+		cp $STORAGE_ROOT/mail/roundcube/roundcube.sqlite /var/backups/roundcube.sqlite.v4
+		sqlite3 $STORAGE_ROOT/mail/roundcube/roundcube.sqlite 'delete from carddav_addressbooks'
+	fi
+
 	# record the version we've installed
 	echo $UPDATE_KEY > ${RCM_DIR}/version
 fi
@@ -224,10 +232,10 @@ cat > ${RCM_PLUGIN_DIR}/carddav/config.inc.php <<EOF;
 \$prefs['_GLOBAL']['hide_preferences'] = true;
 \$prefs['_GLOBAL']['pwstore_scheme'] = 'plain';
 \$prefs['ownCloud'] = array(
-	 'name'         =>  'ownCloud',
+	 'accountname'  =>  'ownCloud',
+	 'name'         =>  'ownCloud (%N)',
 	 'username'     =>  '%u', // login username
 	 'password'     =>  '%p', // login password
-	 'discovery_url' =>  null,
 	 'extra_addressbooks' =>  [
 		[
 			'url'          =>  'https://${PRIMARY_HOSTNAME}/cloud/remote.php/dav/addressbooks/users/%u/contacts/',
@@ -235,7 +243,6 @@ cat > ${RCM_PLUGIN_DIR}/carddav/config.inc.php <<EOF;
 			'readonly'     =>  false,
 			'refresh_time' => '02:00:00',
 			'fixed'        =>  [ 'username','password' ],
-			'hide'        =>  false,
 		],
 	],
 );
