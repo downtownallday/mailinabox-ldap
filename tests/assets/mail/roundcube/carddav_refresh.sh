@@ -25,9 +25,10 @@ function usage()
     exit(1);
 }
 
-function _die($msg)
+function _die($msg, $exp = null)
 {
     fwrite(STDERR, $msg . "\n");
+    if ($exp) { throw $exp; }
     exit(1);
 }
 
@@ -109,19 +110,20 @@ try {
    // this ensures the carddav tables are created or migrated
    $c->afterLogin();
    print "done: afterLogin (init tables)\n";
+   unset($c);
 } catch(exception $e) {
     print $e . "\n";
-    _die("failed");
+    _die("failed", $e);
 }
 
 
 // -------------------------------------------------------------
 // Connect to the roundcube database
 // -------------------------------------------------------------
-$db = $rcmail->get_dbh();
+$db = $RCMAIL->get_dbh();
 $db->db_connect('w');
 if (!$db->is_connected() || $db->is_error()) {
-  _die("No DB connection\n" . $db->is_error());
+    _die("No DB connection" . $db->is_error() ? ": is_error\n" : "\n");
 }
 print "db connected\n";
 
@@ -147,6 +149,15 @@ while ($row = $db->fetch_assoc($sql_result)) {
   print "carddav_addressbooks id: " . $row['id'] . "\n";
 }
 
+// $db->query(
+//     'UPDATE carddav_addressbooks SET last_updated=0 WHERE id IN (' .
+//     join(",", $dbid) .
+//     ')'
+// );
+// if ($db->is_error()) {
+//   _die("DB error occurred setting last_updated: " . $db->is_error());
+// }
+
 // sync the addressbooks
 // we have to re-instantiate to wipe out the addressbook cache
 // see: carddav::abooksDB
@@ -159,8 +170,8 @@ $abMgr = new MStilkerich\RCMCardDAV\Frontend\AddressbookManager();
 foreach($dbid as $id) {
   try {
     $abook = $abMgr->getAddressbook($id);
-    $abMgr->resyncAddressbook($abook);
-    printf("success: %s\n", $id);
+    $r = $abMgr->resyncAddressbook($abook);
+    printf("success: %s: r=%s\n", $id, $r);
   } catch (Exception $e) {
       printf("failed: %s: %s\n", $id, $e->getMessage());
   }

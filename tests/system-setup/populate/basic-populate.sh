@@ -39,7 +39,7 @@ echo "Current contacts count: ${#FILES[@]}"
 if array_contains "$TEST_USER_CONTACT_UUID.vcf" "${FILES[@]}"; then
     echo "Contact $TEST_USER_CONTACT_UUID already present"
 else
-    if ! carddav_add_contact "$TEST_USER" "$TEST_USER_PASS" "Anna" "666-1111" "$TEST_USER_CONTACT_EMAIL" "$TEST_USER_CONTACT_UUID" --insecure 2>/dev/null
+    if ! carddav_add_contact "$TEST_USER" "$TEST_USER_PASS" "BFF" "666-1111" "$TEST_USER_CONTACT_EMAIL" "$TEST_USER_CONTACT_UUID" --insecure 2>/dev/null
     then
         echo "Could not add contact: $REST_ERROR"
         exit 1
