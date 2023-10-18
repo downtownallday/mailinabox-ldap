@@ -258,6 +258,9 @@ roundcube_force_carddav_refresh() {
     if [ $carddav_major -eq 3 ]; then
         # old version
         sync_script="$assets_dir/mail/roundcube/carddav_refresh_v3.sh"
+    elif [ $carddav_major -eq 4 ]; then
+        # old version
+        sync_script="$assets_dir/mail/roundcube/carddav_refresh_v4.sh"
     else
         sync_script="$assets_dir/mail/roundcube/carddav_refresh.sh"
     fi

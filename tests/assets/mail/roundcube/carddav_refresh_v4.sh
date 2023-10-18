@@ -104,9 +104,12 @@ try {
    $c->task .= "|cli";
    $c->init();
    print "done: init\n";
-   // this ensures the carddav tables are created or migrated
-   $c->afterLogin();
-   print "done: afterLogin (init tables)\n";
+   // this ensures the carddav tables are created
+   $c->checkMigrations();
+   print "done: init tables\n";
+   // this populates carddav_addressbooks from config
+   $c->initPresets();
+   print "done: init addressbooks\n";
 } catch(exception $e) {
     print $e . "\n";
     _die("failed");
@@ -124,9 +127,7 @@ if (!$db->is_connected() || $db->is_error()) {
 }
 print "db connected\n";
 
-// NOTE: checking (flags 0x21)=1 is checking 'active' is true
-
-$db->query("update " . $db->table_name('carddav_addressbooks') . " set last_updated=? WHERE (flags & 0x21)=1 and account_id=" . $user->ID, 1636996198);
+$db->query("update " . $db->table_name('carddav_addressbooks') . " set last_updated=? WHERE active=1 and user_id=" . $user->ID, 1636996198);
 print "update made\n";
 if ($db->is_error()) {
   _die("DB error occurred: " . $db->is_error());
@@ -141,7 +142,7 @@ if ($db->is_error()) {
 $dbid=array();
 $sql_result = $db->query('SELECT id FROM ' .
            $db->table_name('carddav_addressbooks') .
-           ' WHERE (flags & 0x21)=1');
+           ' WHERE active=1');
 if ($db->is_error()) {
   _die("DB error occurred: " . $db->is_error());
 }

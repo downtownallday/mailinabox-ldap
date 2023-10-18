@@ -70,20 +70,20 @@ configure_roundcube() {
     cat >> ${RCM_PLUGIN_DIR}/carddav/config.inc.php <<EOF
 <?php
 /* Do not edit. Written by Mail-in-a-Box-LDAP. Regenerated on updates. */
-//\$prefs['_GLOBAL']['hide_preferences'] = true;
-//\$prefs['_GLOBAL']['suppress_version_warning'] = true;
-\$prefs['cloud'] = array(
-	 'name'         =>  '$name',
+\$prefs['cloud'] = [
+	 'accountname'  =>  '$name',
+	 'name'         =>  '$name: %N',
 	 'username'     =>  '%u', // login username
 	 'password'     =>  '%p', // login password
-	 'url'          =>  '${baseurl%/}/remote.php/dav/addressbooks/users/%u/contacts/',
+	 'discovery_url' =>  '${baseurl%/}/remote.php/dav/addressbooks/users/%u',
 	 'active'       =>  true,
 	 'readonly'     =>  false,
 	 'refresh_time' => '02:00:00',
-	 'fixed'        =>  array('username','password'),
-	 'preemptive_auth' => '1',
+	 'fixed'        =>  [ 'accountname', 'discovery_url', 'username', 'password', 'ssl_noverify' ],
+	 'preemptive_auth' => true,
 	 'hide'        =>  false,
-);
+	 'use_categories' => false,
+];
 ?>
 EOF
 }
@@ -239,7 +239,7 @@ remote_nextcloud_handler() {
         fi
 
         # configure roundcube contacts
-        configure_roundcube "$NC_HOST"
+        configure_roundcube
         
         # configure zpush (which links to contacts & calendar)
         configure_zpush

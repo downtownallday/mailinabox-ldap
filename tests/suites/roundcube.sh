@@ -55,13 +55,17 @@ test_create_contact() {
     create_user "$alice" "$alice_pw"
 
     # which address book in roundcube?
-    # .. local nextcloud: the name is "ownCloud (Contacts)
-    # .. remote nextcloud: the name is the remote server name
+    # .. local nextcloud: the name is "ownCloud"
+    # .. remote nextcloud: the name is "remote server name:Contacts"
     #
     # RCM_PLUGIN_DIR is defined in lib/locations.sh    
     record "[get address book name]"
     local code address_book
     address_book=$(php${PHP_VER} -r "require '$RCM_PLUGIN_DIR/carddav/config.inc.php'; isset(\$prefs['cloud']) ? print \$prefs['cloud']['name'] : print \$prefs['ownCloud']['name'];" 2>>$TEST_OF)
+    # carddav has a name substitution format. we want "Contacts" for
+    # discovered address books
+    address_book=$(sed s/%N/Contacts/g <<<"$address_book")
+    
     record "name: $address_book"
     code=$?
     if [ $code -ne 0 ]; then
