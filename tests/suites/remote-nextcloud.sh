@@ -58,8 +58,12 @@ assert_roundcube_carddav_contact_exists() {
 	elif [ $rc -eq 1 ]; then
         test_failure "Contact not found in Roundcube"
         record "Not found"
-        record "Existing entries:"
+        record "-- Existing entries in Roundcube carddav database --"
 		roundcube_dump_contacts >>$TEST_OF 2>&1
+		record "---"
+		record "-- Existing card in nextcloud --"
+		carddav_rest GET "$c_uid.vcf" "$user" "$pass" >>$TEST_OF 2>&1
+		record "---"
 	else
 		test_failure "Error querying roundcube contacts"
 		return
@@ -96,6 +100,10 @@ test_nextcloud_contacts() {
 
 	#record "[create address book 'contacts' for $alice]"
 	#carddav_make_addressbook "$alice" "$alice_pw" "contacts" 2>>$TEST_OF
+
+	record "-- Existing entries in Roundcube carddav database --"
+	roundcube_dump_contacts >>$TEST_OF 2>&1
+	record "---"
 
     # add new contact to alice's Nextcloud account using CardDAV API
     local c_uid="$(generate_uuid)"
