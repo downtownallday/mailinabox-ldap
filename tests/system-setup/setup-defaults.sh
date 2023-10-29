@@ -68,7 +68,7 @@ export MIABLDAP_RELEASE_TAG="${MIABLDAP_RELEASE_TAG:-v60}"
 
 # When running tests that require php, use this version of php. This
 # should be the same as what's in setup/functions.sh.
-export PHP_VER=8.0
+export PHP_VER=${PHP_VER:-8.1}
 
 # Tag of last version supported on Ubuntu Bionic 18.04
 UPSTREAM_FINAL_RELEASE_TAG_BIONIC64=v57a

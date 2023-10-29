@@ -12,6 +12,7 @@ load './funcs.rb'
 Vagrant.configure("2") do |config|
 
   config.vm.synced_folder "../..", "/mailinabox", id: "mailinabox", automount: false
+  config.vm.network "public_network", bridge: "#$default_network_interface"
   use_preloaded_box config, "ubuntu/jammy64"
 
   # fresh install with encryption-at-rest
@@ -68,6 +69,26 @@ cd /mailinabox
 export PRIMARY_HOSTNAME=upgrade.abc.com
 tests/system-setup/upgrade.sh --populate=basic --populate=totpuser || exit 1
 tests/runner.sh upgrade-basic upgrade-totpuser default || exit 2
+SH
+  end
+
+  # testing upgrade:  old-miabldap -> new-miabldap
+  config.vm.define "upgrade-older" do |m1|
+    m1.vm.provision :shell, :inline => <<-SH
+cd /mailinabox
+export PRIMARY_HOSTNAME=upgrade-older.local
+export MIABLDAP_RELEASE_TAG=v60  # Nextcloud 23
+tests/system-setup/upgrade.sh --populate=basic --populate=totpuser || exit 1
+tests/runner.sh upgrade-basic upgrade-totpuser default || exit 2
+SH
+  end
+
+  config.vm.define "from-backup" do |m1|
+    m1.vm.provision :shell, :inline => <<-SH
+cd /mailinabox
+export PRIMARY_HOSTNAME=qamail.int.com
+tests/system-setup/from-backup.sh backup1 || exit 1
+tests/runner.sh upgrade-backup1 default || exit 2
 SH
   end
 

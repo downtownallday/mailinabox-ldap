@@ -41,23 +41,28 @@ init() {
 init "$@"
 
 
-if [ $# -lt 3 ]; then
-    die "usage: $0 storage-user /path/to/encrypted /path/to/secret_key /path/to/restore-dir"
+if [ $# -eq 1 ]; then
+    populate_by_name "$1"
+    shift
+    
+elif [ $# -lt 3 ]; then
+    die "usage: $0 backup-name  OR  $0 storage-user /path/to/encrypted /path/to/secret_key /path/to/restore-dir"
+    
+else
+    storage_user="$1"    # eg. "user-data"
+    duplicity_files="$2" # /path/to/encrypted
+    secret_key="$3"      # /path/to/secret_key.txt
+    restore_to="$4"      # eg. /home/user-data
+    shift; shift; shift; shift;
+
+    H1 "Restore from backup files"
+    tests/bin/restore_backup.sh \
+        "$storage_user" \
+        "$duplicity_files" \
+        "$secret_key" \
+        "$restore_to" \
+        || die "Restore failed"
 fi
-storage_user="$1"    # eg. "user-data"
-duplicity_files="$2" # /path/to/encrypted
-secret_key="$3"      # /path/to/secret_key.txt
-restore_to="$4"      # eg. /home/user-data
-shift; shift; shift; shift;
-
-H1 "Restore from backup files"
-tests/bin/restore_backup.sh \
-    "$storage_user" \
-    "$duplicity_files" \
-    "$secret_key" \
-    "$restore_to" \
-    || die "Restore failed"
-
 
 # run setup
 miab_ldap_install "$@"

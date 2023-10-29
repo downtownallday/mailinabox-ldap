@@ -61,8 +61,10 @@ if [ ! -d "$backup_files_dir" ]; then
     exit 1
 fi
 
-echo "Shutting down services"
-ehdd/shutdown.sh --no-umount || exit 1
+if [ -e ehdd/shutdown.sh ]; then
+    echo "Shutting down services"
+    ehdd/shutdown.sh --no-umount || exit 1
+fi
 
 if [ ! -x /usr/bin/duplicity ]; then
     echo "Installing duplicity"
@@ -87,7 +89,7 @@ fi
 # group is created, otherwise the group must already exist (see
 # system_groups below, which are created before users)
 
-if [ -e "setup/ldap.sh" ]; then
+if [ -e "setup/munin.sh" ]; then
     # Mail-In-A-Box
     system_users=(
         "openldap:openldap:OpenLDAP Server Account:/var/lib/ldap:/bin/false"
