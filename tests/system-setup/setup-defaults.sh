@@ -64,7 +64,7 @@ export UPSTREAM_TAG="${UPSTREAM_TAG:-}"
 
 # For setup scripts that install miabldap releases (eg. upgrade tests)
 export MIABLDAP_GIT="${MIABLDAP_GIT:-https://github.com/downtownallday/mailinabox-ldap.git}"
-export MIABLDAP_RELEASE_TAG="${MIABLDAP_RELEASE_TAG:-v60}"
+export MIABLDAP_RELEASE_TAG="${MIABLDAP_RELEASE_TAG:-v67}"
 
 # When running tests that require php, use this version of php. This
 # should be the same as what's in setup/functions.sh.
