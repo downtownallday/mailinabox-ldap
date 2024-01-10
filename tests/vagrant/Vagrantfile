@@ -78,6 +78,7 @@ SH
 cd /mailinabox
 export PRIMARY_HOSTNAME=upgrade-older.local
 export MIABLDAP_RELEASE_TAG=v60  # Nextcloud 23
+export DEB_PYTHON_INSTALL_LAYOUT='deb'  # see https://github.com/mail-in-a-box/mailinabox/issues/2335
 tests/system-setup/upgrade.sh --populate=basic --populate=totpuser || exit 1
 tests/runner.sh upgrade-basic upgrade-totpuser default || exit 2
 SH
