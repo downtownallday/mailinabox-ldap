@@ -75,10 +75,10 @@ InstallNextcloud() {
 	upgrade_method=$1
 	version=$2
 	hash=$3
-	version_contacts=$4
-	hash_contacts=$5
-	version_calendar=$6
-	hash_calendar=$7
+	version_contacts=$4     # no loger used
+	hash_contacts=$5        # no loger used
+	version_calendar=$6     # no loger used
+	hash_calendar=$7        # no loger used
 	version_user_external=${8:-}
 	hash_user_external=${9:-}
 
@@ -100,12 +100,10 @@ InstallNextcloud() {
 	mv /usr/local/lib/nextcloud /usr/local/lib/owncloud
 	rm -f /tmp/nextcloud.zip
 
-	# The two apps we actually want are not in Nextcloud core. Download the releases from
-	# their github repositories.
-	mkdir -p /usr/local/lib/owncloud/apps
-
 	# Starting with Nextcloud 15, the app user_external is no longer included in Nextcloud core,
 	# we will install from their github repository.
+	mkdir -p /usr/local/lib/owncloud/apps
+	
 	if [ -n "$version_user_external" ]; then
 		if [ -z "$hash_user_external" ]; then
 			# if no hash given, clone the repository at version (treeish)
@@ -452,17 +450,16 @@ if ! $occ app:enable contacts >/dev/null; then
 	done
 fi
     
-hide_output sudo -u www-data php$PHP_VER /usr/local/lib/owncloud/occ app:enable calendar
+hide_output $occ app:enable calendar
 
 # When upgrading, run the upgrade script again now that apps are enabled. It seems like
 # the first upgrade at the top won't work because apps may be disabled during upgrade?
 # Check for success (0=ok, 3=no upgrade needed).
-sudo -u www-data php$PHP_VER /usr/local/lib/owncloud/occ upgrade
+$occ upgrade
 if [ \( $? -ne 0 \) -a \( $? -ne 3 \) ]; then exit 1; fi
 
 # Disable default apps that we don't support
-sudo -u www-data \
-	php$PHP_VER /usr/local/lib/owncloud/occ app:disable photos dashboard activity \
+$occ app:disable photos dashboard activity \
 	| (grep -v "No such app enabled" || /bin/true)
 
 # Set PHP FPM values to support large file uploads
@@ -505,7 +502,7 @@ chmod +x /etc/cron.d/mailinabox-nextcloud
 
 # We also need to change the sending mode from background-job to occ.
 # Or else the reminders will just be sent as soon as possible when the background jobs run.
-hide_output sudo -u www-data php$PHP_VER -f /usr/local/lib/owncloud/occ config:app:set dav sendEventRemindersMode --value occ
+hide_output $occ config:app:set dav sendEventRemindersMode --value occ
 
 # Now set the config to read-only.
 # Do this only at the very bottom when no further occ commands are needed.
