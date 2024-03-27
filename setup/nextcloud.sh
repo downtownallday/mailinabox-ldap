@@ -458,17 +458,18 @@ hide_output $occ app:disable firstrunwizard
 hide_output $occ app:enable user_external
 
 # if contacts isn't installed the nextcloud app store can reject the
-# request temporarily, especially if you've been accessing it a lot
+# request temporarily, especially if its been accessed a lot
 if ! $occ app:enable contacts >/dev/null; then
-	tries=1
+	tries=0
 	while ! $occ app:enable contacts; do
 		let tries+=1
-		if [ $tries -gt 50 ]; then
+		if [ $tries -gt 30 ]; then
 			echo "Failed"
 			exit 1
 		fi
-		echo -n "...wait..."
-		sleep 10
+		stdbuf -o0 echo -n "...wait..."
+		sleep 15
+		stdbuf -o0 echo -n "retry $tries of 30..."
 	done
 fi
 
