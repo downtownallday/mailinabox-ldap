@@ -477,9 +477,7 @@ hide_output $occ app:enable calendar
 
 # When upgrading, run the upgrade script again now that apps are enabled. It seems like
 # the first upgrade at the top won't work because apps may be disabled during upgrade?
-# Check for success (0=ok, 3=no upgrade needed).
 $occ upgrade
-if [ \( $? -ne 0 \) -a \( $? -ne 3 \) ]; then exit 1; fi
 
 # Disable default apps that we don't support
 $occ app:disable photos dashboard activity \
