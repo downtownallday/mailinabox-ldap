@@ -1,4 +1,5 @@
 #!/bin/bash
+# -*- indent-tabs-mode: t; tab-width: 4; -*-
 #####
 ##### This file is part of Mail-in-a-Box-LDAP which is released under the
 ##### terms of the GNU Affero General Public License as published by the
@@ -13,8 +14,8 @@
 if [ "${FEATURE_NEXTCLOUD:-true}" == "false" ]; then
     source /etc/mailinabox.conf # load global vars
     # ensure this log file exists or fail2ban won't start
-    mkdir -p $STORAGE_ROOT/owncloud
-    touch $STORAGE_ROOT/owncloud/nextcloud.log
+    mkdir -p "$STORAGE_ROOT/owncloud"
+    touch "$STORAGE_ROOT/owncloud/nextcloud.log"
     return 0
 fi
 
@@ -43,22 +44,11 @@ nextcloud_hash=d5c10b650e5396d5045131c6d22c02a90572527c
 
 # Nextcloud apps
 # --------------
-# * Find the most recent tag that is compatible with the Nextcloud version above by:
-#   https://github.com/nextcloud-releases/contacts/tags
-#   https://github.com/nextcloud-releases/calendar/tags
-#   https://github.com/nextcloud/user_external/tags
-#
-# * For these three packages, contact, calendar and user_external, the hash is the SHA1 hash of
-# the ZIP package, which you can find by just running this script and copying it from
-# the error message when it doesn't match what is below:
-
-# Always ensure the versions are supported, see https://apps.nextcloud.com/apps/contacts
-contacts_ver=5.5.3
-contacts_hash=799550f38e46764d90fa32ca1a6535dccd8316e5
-
-# Always ensure the versions are supported, see https://apps.nextcloud.com/apps/calendar
-calendar_ver=4.7.6
-calendar_hash=a995bca4effeecb2cab25f3bbeac9bfe05fee766
+# * Find the most recent tag that is compatible with the Nextcloud version above by
+#   consulting the <dependencies>...<nextcloud> node at:
+#   https://github.com/nextcloud/user_external/blob/master/appinfo/info.xml
+# * The hash is the SHA1 hash of the ZIP package, which you can find by just running this script and
+#   copying it from the error message when it doesn't match what is below.
 
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/user_external
 user_external_ver=3.3.0
@@ -87,6 +77,8 @@ apt_install curl php"${PHP_VER}" php"${PHP_VER}"-fpm \
 	php"${PHP_VER}"-dev php"${PHP_VER}"-gd php"${PHP_VER}"-xml php"${PHP_VER}"-mbstring php"${PHP_VER}"-zip php"${PHP_VER}"-apcu \
 	php"${PHP_VER}"-intl php"${PHP_VER}"-imagick php"${PHP_VER}"-gmp php"${PHP_VER}"-bcmath
 
+docker_installed=false
+
 # Enable APC before Nextcloud tools are run.
 tools/editconf.py /etc/php/"$PHP_VER"/mods-available/apcu.ini -c ';' \
 	apc.enabled=1 \
@@ -94,14 +86,15 @@ tools/editconf.py /etc/php/"$PHP_VER"/mods-available/apcu.ini -c ';' \
 
 InstallNextcloud() {
 
-	version=$1
-	hash=$2
-	version_contacts=$3
-	hash_contacts=$4
-	version_calendar=$5
-	hash_calendar=$6
-	version_user_external=${7:-}
-	hash_user_external=${8:-}
+	upgrade_method=$1
+	version=$2
+	hash=$3
+	version_contacts=$4     # no loger used
+	hash_contacts=$5        # no loger used
+	version_calendar=$6     # no loger used
+	hash_calendar=$7        # no loger used
+	version_user_external=${8:-}
+	hash_user_external=${9:-}
 
 	echo
 	echo "Upgrading to Nextcloud version $version"
@@ -121,20 +114,10 @@ InstallNextcloud() {
 	mv /usr/local/lib/nextcloud /usr/local/lib/owncloud
 	rm -f /tmp/nextcloud.zip
 
-	# The two apps we actually want are not in Nextcloud core. Download the releases from
-	# their github repositories.
-	mkdir -p /usr/local/lib/owncloud/apps
-
-	wget_verify "https://github.com/nextcloud-releases/contacts/archive/refs/tags/v$version_contacts.tar.gz" "$hash_contacts" /tmp/contacts.tgz
-	tar xf /tmp/contacts.tgz -C /usr/local/lib/owncloud/apps/
-	rm /tmp/contacts.tgz
-
-	wget_verify "https://github.com/nextcloud-releases/calendar/archive/refs/tags/v$version_calendar.tar.gz" "$hash_calendar" /tmp/calendar.tgz
-	tar xf /tmp/calendar.tgz -C /usr/local/lib/owncloud/apps/
-	rm /tmp/calendar.tgz
-
 	# Starting with Nextcloud 15, the app user_external is no longer included in Nextcloud core,
 	# we will install from their github repository.
+	mkdir -p /usr/local/lib/owncloud/apps
+
 	if [ -n "$version_user_external" ]; then
 		if [ -z "$hash_user_external" ]; then
 			# if no hash given, clone the repository at version (treeish)
@@ -160,29 +143,90 @@ InstallNextcloud() {
 	chown -f -R www-data:www-data "$STORAGE_ROOT/owncloud" /usr/local/lib/owncloud || /bin/true
 
 	# If this isn't a new installation, immediately run the upgrade script.
-	# Then check for success (0=ok and 3=no upgrade needed, both are success).
 	if [ -e "$STORAGE_ROOT/owncloud/owncloud.db" ]; then
-		# ownCloud 8.1.1 broke upgrades. It may fail on the first attempt, but
-		# that can be OK.
-		hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ upgrade
-		E=$?
-		if [ $E -ne 0 ] && [ $E -ne 3 ]; then
-			echo "Trying ownCloud upgrade again to work around ownCloud upgrade bug..."
-			sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ upgrade
-			E=$?
-			if [ $E -ne 0 ] && [ $E -ne 3 ]; then exit 1; fi
-			sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ maintenance:mode --off
-			echo "...which seemed to work."
+
+		if [ "$upgrade_method" = "docker" ]; then
+			apps=( )
+			[ -n "$version_user_external" ] && apps+=( user_external )
+			RunNextcloudOnDocker $version ${apps[*]}
+			container_id="$CONTAINER_ID" # returned by RunNextcloudOnDocker
+			occ="docker exec --user www-data $container_id php occ"
+
+		else
+			occ="sudo -u www-data php$PHP_VER /usr/local/lib/owncloud/occ"
 		fi
 
+		hide_output $occ upgrade
+
 		# Add missing indices. NextCloud didn't include this in the normal upgrade because it might take some time.
-		hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ db:add-missing-indices
-		hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ db:add-missing-primary-keys
+		$occ db:add-missing-indices
+		$occ db:add-missing-primary-keys
 
 		# Run conversion to BigInt identifiers, this process may take some time on large tables.
-		hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ db:convert-filecache-bigint --no-interaction
+		$occ db:convert-filecache-bigint --no-interaction
+
+		if [ "$upgrade_method" = "docker" ]; then
+			StopNextcloudOnDocker "$version" "$container_id"
+		fi
 	fi
 }
+
+
+InstallDocker() {
+	if [ ! -x /usr/bin/docker ]; then
+		echo "Installing docker"
+		hide_output apt_install docker.io
+		docker_installed=true
+	fi
+}
+
+RemoveDocker() {
+	if $docker_installed; then
+		wait_for_apt_lock
+		hide_output apt-get purge -y docker.io
+	fi
+}
+
+RunNextcloudOnDocker() {
+	local major_version="${1/\.*/}"
+	shift
+	InstallDocker
+	echo "Pulling Nextcloud $major_version from Docker Hub"
+	hide_output docker pull "nextcloud:$major_version"
+	echo "Starting container"
+	hide_output docker run -d --rm --network=none -p 127.0.0.1:8080:80 -v "$STORAGE_ROOT/owncloud:$STORAGE_ROOT/owncloud" "nextcloud:$major_version"
+	CONTAINER_ID="$(docker ps --last 1 -q)"
+
+	# wait for container to start
+	while [ "$(docker inspect -f {{.State.Running}} "$CONTAINER_ID")" != "true" ] || ! docker exec "$CONTAINER_ID" /usr/bin/test -e /var/www/html/config/autoconfig.php; do
+		echo "...waiting for container to start"
+		sleep 1
+	done
+
+	# link our config.php & database to the running container
+	docker exec "$CONTAINER_ID" /bin/ln -sf "$STORAGE_ROOT/owncloud/config.php" /var/www/html/config/config.php
+
+	# copy apps over
+	local app
+	for app; do
+		docker exec "$CONTAINER_ID" rm -rf "/var/www/html/apps/$app"
+		hide_output docker cp "/usr/local/lib/owncloud/apps/$app" "$CONTAINER_ID:/var/www/html/apps/"
+	done
+}
+
+StopNextcloudOnDocker() {
+	local major_version="${1/\.*/}"
+	local CONTAINER_ID="$2"
+	echo "Stopping container and destroying docker image"
+	# remove this unwanted config setting made by the upgrade
+	hide_output docker exec --user www-data "$CONTAINER_ID" php occ config:system:delete apps_paths
+	# destroy the container and remove the image
+	hide_output docker stop "$CONTAINER_ID"
+	hide_output docker image rm "nextcloud:$major_version"
+	echo "Done"
+}
+
+
 
 # Current Nextcloud Version, #1623
 # Checking /usr/local/lib/owncloud/version.php shows version of the Nextcloud application, not the DB
@@ -250,29 +294,31 @@ if [ ! -d /usr/local/lib/owncloud/ ] || [[ ! ${CURRENT_NEXTCLOUD_VER} =~ ^$nextc
 		# - Run sudo ./setup/start.sh on the new machine. Upon completion, test its basic functionalities.
 
 		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^20 ]]; then
-			InstallNextcloud 21.0.7 f5c7079c5b56ce1e301c6a27c0d975d608bb01c9 4.0.7 45e7cf4bfe99cd8d03625cf9e5a1bb2e90549136 3.0.4 d0284b68135777ec9ca713c307216165b294d0fe
+			InstallNextcloud docker 21.0.7 f5c7079c5b56ce1e301c6a27c0d975d608bb01c9 4.0.7 45e7cf4bfe99cd8d03625cf9e5a1bb2e90549136 3.0.4 d0284b68135777ec9ca713c307216165b294d0fe
 			CURRENT_NEXTCLOUD_VER="21.0.7"
 		fi
 		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^21 ]]; then
-			InstallNextcloud 22.2.6 9d39741f051a8da42ff7df46ceef2653a1dc70d9 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
+			InstallNextcloud docker 22.2.6 9d39741f051a8da42ff7df46ceef2653a1dc70d9 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
 			CURRENT_NEXTCLOUD_VER="22.2.6"
 		fi
 		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^22 ]]; then
-			InstallNextcloud 23.0.12 d138641b8e7aabebe69bb3ec7c79a714d122f729 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
+			InstallNextcloud docker 23.0.12 d138641b8e7aabebe69bb3ec7c79a714d122f729 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
 			CURRENT_NEXTCLOUD_VER="23.0.12"
 		fi
 		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^23 ]]; then
-			InstallNextcloud 24.0.12 7aa5d61632c1ccf4ca3ff00fb6b295d318c05599 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
+			InstallNextcloud local 24.0.12 7aa5d61632c1ccf4ca3ff00fb6b295d318c05599 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
 			CURRENT_NEXTCLOUD_VER="24.0.12"
 		fi
-        if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^24 ]]; then
-			InstallNextcloud 25.0.7 a5a565c916355005c7b408dd41a1e53505e1a080 5.3.0 4b0a6666374e3b55cfd2ae9b72e1d458b87d4c8c 4.4.2 21a42e15806adc9b2618760ef94f1797ef399e2f 3.2.0 a494073dcdecbbbc79a9c77f72524ac9994d2eec
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^24 ]]; then
+			InstallNextcloud local 25.0.7 a5a565c916355005c7b408dd41a1e53505e1a080 5.3.0 4b0a6666374e3b55cfd2ae9b72e1d458b87d4c8c 4.4.2 21a42e15806adc9b2618760ef94f1797ef399e2f 3.2.0 a494073dcdecbbbc79a9c77f72524ac9994d2eec
 			CURRENT_NEXTCLOUD_VER="25.0.7"
 		fi
 	fi
 
-	InstallNextcloud $nextcloud_ver $nextcloud_hash $contacts_ver $contacts_hash $calendar_ver $calendar_hash $user_external_ver $user_external_hash
+	InstallNextcloud local $nextcloud_ver $nextcloud_hash "" "" "" "" $user_external_ver $user_external_hash
 fi
+
+RemoveDocker
 
 # ### Configuring Nextcloud
 
@@ -347,6 +393,17 @@ fi
 # * mail_domain' needs to be set every time we run the setup. Making sure we are setting
 #   the correct domain name if the domain is being change from the previous setup.
 # Use PHP to read the settings file, modify it, and write out the new settings array.
+trusted_domains="'$PRIMARY_HOSTNAME'"
+if dmidecode -t system | grep -q "Product Name: VirtualBox"; then
+	# add ip addresses to trusted_domains if we're running in VirtualBox
+	if [ "$(hostname)" != "$PRIMARY_HOSTNAME" ]; then
+		trusted_domains="$trusted_domains, '$(hostname)'"
+	fi
+	for addr in $(ip --brief address | awk '{print $3; print $NF}' | awk -F/ '{print $1}' | sort -u); do
+		trusted_domains="$trusted_domains, '$addr'"
+	done
+fi
+
 TIMEZONE=$(cat /etc/timezone)
 CONFIG_TEMP=$(/bin/mktemp)
 php"$PHP_VER" <<EOF > "$CONFIG_TEMP" && mv "$CONFIG_TEMP" "$STORAGE_ROOT/owncloud/config.php";
@@ -355,7 +412,7 @@ include("$STORAGE_ROOT/owncloud/config.php");
 
 \$CONFIG['config_is_read_only'] = false;
 
-\$CONFIG['trusted_domains'] = array('$PRIMARY_HOSTNAME');
+\$CONFIG['trusted_domains'] = array($trusted_domains);
 
 \$CONFIG['memcache.local'] = '\OC\Memcache\APCu';
 \$CONFIG['overwrite.cli.url'] = 'https://${PRIMARY_HOSTNAME}/cloud';
@@ -393,21 +450,35 @@ chown www-data:www-data "$STORAGE_ROOT/owncloud/config.php"
 # The firstrunwizard gave Josh all sorts of problems, so disabling that.
 # user_external is what allows Nextcloud to use IMAP for login. The contacts
 # and calendar apps are the extensions we really care about here.
-hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/console.php app:disable firstrunwizard
-hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/console.php app:enable user_external
-hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/console.php app:enable contacts
-hide_output sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/console.php app:enable calendar
+
+occ="sudo -u www-data php$PHP_VER /usr/local/lib/owncloud/occ"
+hide_output $occ app:disable firstrunwizard
+hide_output $occ app:enable user_external
+
+# if contacts isn't installed the nextcloud app store can reject the
+# request temporarily, especially if its been accessed a lot
+if ! $occ app:enable contacts >/dev/null; then
+	tries=0
+	while ! $occ app:enable contacts; do
+		let tries+=1
+		if [ $tries -gt 30 ]; then
+			echo "Failed"
+			exit 1
+		fi
+		stdbuf -o0 echo -n "...wait..."
+		sleep 15
+		stdbuf -o0 echo -n "retry $tries of 30..."
+	done
+fi
+
+hide_output $occ app:enable calendar
 
 # When upgrading, run the upgrade script again now that apps are enabled. It seems like
 # the first upgrade at the top won't work because apps may be disabled during upgrade?
-# Check for success (0=ok, 3=no upgrade needed).
-sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ upgrade
-E=$?
-if [ $E -ne 0 ] && [ $E -ne 3 ]; then exit 1; fi
+$occ upgrade
 
 # Disable default apps that we don't support
-sudo -u www-data \
-	php"$PHP_VER" /usr/local/lib/owncloud/occ app:disable photos dashboard activity \
+$occ app:disable photos dashboard activity \
 	| (grep -v "No such app enabled" || /bin/true)
 
 # Set PHP FPM values to support large file uploads
@@ -450,7 +521,7 @@ chmod +x /etc/cron.d/mailinabox-nextcloud
 
 # We also need to change the sending mode from background-job to occ.
 # Or else the reminders will just be sent as soon as possible when the background jobs run.
-hide_output sudo -u www-data php"$PHP_VER" -f /usr/local/lib/owncloud/occ config:app:set dav sendEventRemindersMode --value occ
+hide_output $occ config:app:set dav sendEventRemindersMode --value occ
 
 # Now set the config to read-only.
 # Do this only at the very bottom when no further occ commands are needed.

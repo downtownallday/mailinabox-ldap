@@ -419,9 +419,9 @@ miab_ldap_install() {
     H2 "Run mailinabox-ldap setup"
     # if EHDD_KEYFILE is set, use encryption-at-rest support
     if [ ! -z "$EHDD_KEYFILE" ]; then
-        ehdd/start-encrypted.sh
+        ehdd/start-encrypted.sh -v
     else
-        setup/start.sh
+        setup/start.sh -v
     fi
     
     if [ $? -ne 0 ]; then

@@ -1,0 +1,85 @@
+#####
+##### This file is part of Mail-in-a-Box-LDAP which is released under the
+##### terms of the GNU Affero General Public License as published by the
+##### Free Software Foundation, either version 3 of the License, or (at
+##### your option) any later version. See file LICENSE or go to
+##### https://github.com/downtownallday/mailinabox-ldap for full license
+##### details.
+#####
+
+load '../funcs.rb'
+
+Vagrant.configure("2") do |config|
+
+  config.vm.synced_folder "../../..", "/mailinabox", id: "mailinabox", automount: false
+    
+  config.vm.define "backup1" do |m1|
+    use_preloaded_box config, "ubuntu/bionic64", ".."
+    m1.vm.provision :shell, :inline => <<-SH
+start=$(date +%s)
+cd /mailinabox
+export PRIMARY_HOSTNAME=backup1.int.com
+tests/system-setup/vanilla.sh \
+   --populate=basic \
+   --checkout-tag=v57 \
+   --checkout-targetdir=/root/mailinabox \
+   --checkout-repo=https://github.com/downtownallday/mailinabox-ldap.git
+rc=$?
+
+end=$(date +%s)
+echo "Provisioning took $(source tests/lib/misc.sh; elapsed_pretty $start $end)"
+
+# create the backup and copy to test/assets directory
+if [ $rc -eq 0 ]; then
+   cd /root/mailinabox
+   assetdir=/mailinabox/tests/assets/backup/backup1
+   echo "Make a backup and copy it to $assetdir"
+   if management/backup.py; then
+      rm -rf "$assetdir"
+      mkdir -p "$assetdir"
+      (cd /home/user-data/backup; tar cf - secret_key.txt encrypted) | (cd "$assetdir"; tar -xf -)
+   else
+      rc=99
+   fi
+fi
+ 
+exit $rc
+SH
+  end  # backup1
+
+  config.vm.define "backup2" do |m1|
+    use_preloaded_box config, "ubuntu/bionic64", ".."
+    m1.vm.provision :shell, :inline => <<-SH
+start=$(date +%s)
+cd /mailinabox
+export PRIMARY_HOSTNAME=backup2.int.com
+export PHP_VER=7.2
+tests/system-setup/vanilla-upstream.sh \
+   --populate=basic \
+   --checkout-tag=v57 \
+   --checkout-targetdir=/root/mailinabox \
+   --checkout-repo=https://github.com/mail-in-a-box/mailinabox.git
+rc=$?
+
+end=$(date +%s)
+echo "Provisioning took $(source tests/lib/misc.sh; elapsed_pretty $start $end)"
+
+# create the backup and copy to test/assets directory
+if [ $rc -eq 0 ]; then
+   cd /root/mailinabox
+   assetdir=/mailinabox/tests/assets/backup/backup2
+   echo "Make a backup and copy it to $assetdir"
+   if management/backup.py; then
+      rm -rf "$assetdir"
+      mkdir -p "$assetdir"
+      (cd /home/user-data/backup; tar cf - secret_key.txt encrypted) | (cd "$assetdir"; tar -xf -)
+   else
+      rc=99
+   fi
+fi
+ 
+exit $rc
+SH
+  end  # backup2
+
+end
