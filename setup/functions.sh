@@ -15,7 +15,7 @@
 # -o pipefail: don't ignore errors in the non-last command in a pipeline
 set -euo pipefail
 
-PHP_VER=8.0
+PHP_VER=8.1
 
 # ansi escapes for hilighting text
 F_DANGER=$(echo -e "\033[31m")
