@@ -25,10 +25,9 @@ function usage()
     exit(1);
 }
 
-function _die($msg, $exp = null)
+function _die($msg)
 {
     fwrite(STDERR, $msg . "\n");
-    if ($exp) { throw $exp; }
     exit(1);
 }
 
@@ -81,7 +80,7 @@ if ($auth['valid'] && !$auth['abort']
 
 
 // ----------------------------------------------------
-// Get the roundcube user id (see deluser.sh)
+// Get the user id (see deluser.sh)
 // ----------------------------------------------------
 $host = $auth['host']; # can be a url (eg: ssl://localhost)
 $host_url = parse_url($host);
@@ -92,7 +91,6 @@ $user = rcube_user::query($auth['user'], $host);
 if (!$user) {
        _die("User not found auth[host]=" . $auth['host'] . " host=" . $host . "\n");
 }
-printf("roundcube user id: %s\n", $user->ID);
    
 
 // ----------------------------------------------------
@@ -100,32 +98,40 @@ printf("roundcube user id: %s\n", $user->ID);
 // ----------------------------------------------------
 
 require_once('plugins/carddav/carddav.php');
-require_once('plugins/carddav/src/Frontend/AddressbookManager.php');
 
 try {
    $c = new carddav(rcube_plugin_api::get_instance());
    $c->task .= "|cli";
    $c->init();
    print "done: init\n";
-   // this ensures the carddav tables are created or migrated
-   $c->afterLogin();
-   print "done: afterLogin (init tables)\n";
-   unset($c);
+   // this ensures the carddav tables are created
+   $c->checkMigrations();
+   print "done: init tables\n";
+   // this populates carddav_addressbooks from config
+   $c->initPresets();
+   print "done: init addressbooks\n";
 } catch(exception $e) {
     print $e . "\n";
-    _die("failed", $e);
+    _die("failed");
 }
 
 
 // -------------------------------------------------------------
-// Connect to the roundcube database
+// Set the last_updated field for addressbooks to an old date.
+// That will force a sync/update
 // -------------------------------------------------------------
-$db = $RCMAIL->get_dbh();
+$db = $rcmail->get_dbh();
 $db->db_connect('w');
 if (!$db->is_connected() || $db->is_error()) {
-    _die("No DB connection" . $db->is_error() ? ": is_error\n" : "\n");
+  _die("No DB connection\n" . $db->is_error());
 }
 print "db connected\n";
+
+$db->query("update " . $db->table_name('carddav_addressbooks') . " set last_updated=? WHERE active=1 and user_id=" . $user->ID, 1636996198);
+print "update made\n";
+if ($db->is_error()) {
+  _die("DB error occurred: " . $db->is_error());
+}
 
 
 // ------------------------------------------------------
@@ -133,13 +139,10 @@ print "db connected\n";
 // ------------------------------------------------------
 
 // first get all addressbook ids
-// asserting (flags 0x21)=1 is checking that 'active' is true
-
 $dbid=array();
-$sql_result = $db->query(
-    'SELECT carddav_addressbooks.id FROM ' . $db->table_name('carddav_addressbooks') .
-    ' JOIN carddav_accounts ON carddav_addressbooks.account_id = carddav_accounts.id' .
-    ' WHERE (carddav_addressbooks.flags & 0x21)=1 AND user_id='.$user->ID );
+$sql_result = $db->query('SELECT id FROM ' .
+           $db->table_name('carddav_addressbooks') .
+           ' WHERE active=1');
 if ($db->is_error()) {
   _die("DB error occurred: " . $db->is_error());
 }
@@ -149,31 +152,15 @@ while ($row = $db->fetch_assoc($sql_result)) {
   print "carddav_addressbooks id: " . $row['id'] . "\n";
 }
 
-// $db->query(
-//     'UPDATE carddav_addressbooks SET last_updated=0 WHERE id IN (' .
-//     join(",", $dbid) .
-//     ')'
-// );
-// if ($db->is_error()) {
-//   _die("DB error occurred setting last_updated: " . $db->is_error());
-// }
-
 // sync the addressbooks
 // we have to re-instantiate to wipe out the addressbook cache
 // see: carddav::abooksDB
 $c = new carddav(rcube_plugin_api::get_instance());
 $c->init();
-$c->afterLogin();
-
-$abMgr = new MStilkerich\RCMCardDAV\Frontend\AddressbookManager();
 
 foreach($dbid as $id) {
-  try {
-    $abook = $abMgr->getAddressbook($id);
-    $r = $abMgr->resyncAddressbook($abook);
-    printf("success: %s: r=%s\n", $id, $r);
-  } catch (Exception $e) {
-      printf("failed: %s: %s\n", $id, $e->getMessage());
-  }
+  // getAddressBook() will force an re-sync
+  $abook = $c->getAddressbook(["id"=>"carddav_$id","writeable"=>false]);
+  print("success\n");
 }
 

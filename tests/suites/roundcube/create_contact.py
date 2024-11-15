@@ -56,6 +56,7 @@ try:
     if not el.is_displayed():
         d.say_verbose("open sidebar to select address book")
         d.find_el('a.back-sidebar-button').click()
+        d.save_screenshot('sidebar-open.png')
     el.click()
 
     d.say("Create contact")

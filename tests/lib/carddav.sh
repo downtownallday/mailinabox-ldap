@@ -258,6 +258,9 @@ roundcube_force_carddav_refresh() {
     if [ $carddav_major -eq 3 ]; then
         # old version
         sync_script="$assets_dir/mail/roundcube/carddav_refresh_v3.sh"
+    elif [ $carddav_major -eq 4 ]; then
+        # old version
+        sync_script="$assets_dir/mail/roundcube/carddav_refresh_v4.sh"
     else
         sync_script="$assets_dir/mail/roundcube/carddav_refresh.sh"
     fi
@@ -298,7 +301,7 @@ roundcube_carddav_contact_exists() {
 
 roundcube_dump_contacts() {
     local db="${1:-$STORAGE_ROOT/mail/roundcube/roundcube.sqlite}"
-    local cols="${2:-name,cuid}"
+    local cols="${2:-name,email,cuid}"
     sqlite3 "$db" "select $cols FROM carddav_contacts"
 }
 

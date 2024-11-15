@@ -53,9 +53,9 @@ VERSION=1.6.8
 HASH=00586f5163b3f6c1b0798be745982e3547b1b24a
 PERSISTENT_LOGIN_VERSION=version-5.3.0
 HTML5_NOTIFIER_VERSION=68d9ca194212e15b3c7225eb6085dbcf02fd13d7 # version 0.6.4+
-CARDDAV_VERSION=4.4.3
-CARDDAV_VERSION_AND_VARIANT=4.4.3
-CARDDAV_HASH=74f8ba7aee33e78beb9de07f7f44b81f6071b644
+CARDDAV_VERSION=5.1.0
+CARDDAV_VERSION_AND_VARIANT=5.1.0
+CARDDAV_HASH=9f977d319db13ea1b4ca6c9bb98aaef0feb9eebe
 
 UPDATE_KEY=$VERSION:$PERSISTENT_LOGIN_VERSION:$HTML5_NOTIFIER_VERSION:$CARDDAV_VERSION
 
@@ -105,6 +105,14 @@ if [ $needs_update == 1 ]; then
 	# unzip and cleanup
 	tar -C ${RCM_PLUGIN_DIR} -zxf /tmp/carddav.tar.gz
 	rm -f /tmp/carddav.tar.gz
+
+	# nuke carddav contacts cache when upgrading from carddav v4 -> v5
+	if [ -e $STORAGE_ROOT/mail/roundcube/roundcube.sqlite -a "$(sqlite3 $STORAGE_ROOT/mail/roundcube/roundcube.sqlite 'select count(*) from carddav_migrations where filename="0017-accountentities"')" = "0" ]; then
+		# we're upgrading from carddav v4 to v5 - start with a fresh cache
+		say_verbose "Delete carddav contacts cache"
+		cp $STORAGE_ROOT/mail/roundcube/roundcube.sqlite /var/backups/roundcube.sqlite.v4
+		sqlite3 $STORAGE_ROOT/mail/roundcube/roundcube.sqlite 'delete from carddav_addressbooks'
+	fi
 
 	# record the version we've installed
 	echo $UPDATE_KEY > ${RCM_DIR}/version
@@ -222,18 +230,21 @@ cat > ${RCM_PLUGIN_DIR}/carddav/config.inc.php <<EOF;
 <?php
 /* Do not edit. Written by Mail-in-a-Box. Regenerated on updates. */
 \$prefs['_GLOBAL']['hide_preferences'] = true;
-\$prefs['_GLOBAL']['suppress_version_warning'] = true;
+\$prefs['_GLOBAL']['pwstore_scheme'] = 'plain';
 \$prefs['ownCloud'] = array(
-	 'name'         =>  'ownCloud',
+	 'accountname'  =>  'ownCloud',
+	 'name'         =>  'ownCloud (%N)',
 	 'username'     =>  '%u', // login username
 	 'password'     =>  '%p', // login password
-	 'url'          =>  'https://${PRIMARY_HOSTNAME}/cloud/remote.php/dav/addressbooks/users/%u/contacts/',
-	 'active'       =>  true,
-	 'readonly'     =>  false,
-	 'refresh_time' => '02:00:00',
-	 'fixed'        =>  array('username','password'),
-	 'preemptive_auth' => '1',
-	 'hide'        =>  false,
+	 'extra_addressbooks' =>  [
+		[
+			'url'          =>  'https://${PRIMARY_HOSTNAME}/cloud/remote.php/dav/addressbooks/users/%u/contacts/',
+			'active'       =>  true,
+			'readonly'     =>  false,
+			'refresh_time' => '02:00:00',
+			'fixed'        =>  [ 'username','password' ],
+		],
+	],
 );
 ?>
 EOF
