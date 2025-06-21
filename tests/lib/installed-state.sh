@@ -183,8 +183,7 @@ installed_state_compare() {
     fi
 
     # before quota support to one with it
-    if [ "$cmptype" = "miabldap2miabldap" -a $MIGRATION_ML_VERSION_A -le 2 -a $MIGRATION_ML_VERSION_B -ge 3
-       -o "$cmdtype" = "miab2miabldap" -a $MIGRATION_VERSION_A -lt 15 -a $MIGRATION_ML_VERSION_B -ge 3 ]; then
+    if [ "$cmptype" = "miabldap2miabldap" -a $MIGRATION_ML_VERSION_A -le 2 -a $MIGRATION_ML_VERSION_B -ge 3 -o "$cmdtype" = "miab2miabldap" -a $MIGRATION_VERSION_A -lt 15 -a $MIGRATION_ML_VERSION_B -ge 3 ]; then
         # miabldap migration level <=2 does not have quota fields
         # miab migration level <15 does not have quota fields
         #  ... remove them from the comparison
