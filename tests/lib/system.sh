@@ -101,32 +101,8 @@ install_docker() {
         echo "Docker already installed"
         return 0
     fi
-    
     wait_for_apt
-    apt-get install -y -qq \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            gnupg-agent \
-            software-properties-common \
-        || return 1
-       
-    wait_for_apt
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - \
-        || return 2
-    
-    wait_for_apt
-    apt-key fingerprint 0EBFCD88 || return 3
-    
-    wait_for_apt
-    add-apt-repository -y --update "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" || return 4
-    
-    wait_for_apt
-    apt-get install -y -qq \
-            docker-ce \
-            docker-ce-cli \
-            containerd.io \
-        || return 5
+    exec_no_output apt-get install -y docker.io || return 1
 }
 
 
