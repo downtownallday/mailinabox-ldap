@@ -28,6 +28,7 @@ from email_validator import validate_email as validate_email_, EmailNotValidErro
 import idna
 import socket
 import logging
+import operator
 
 log = logging.getLogger(__name__)
 
@@ -302,9 +303,8 @@ def sizeof_fmt(num):
 	for unit in ['','K','M','G','T']:
 		if abs(num) < 1024.0:
 			if abs(num) > 99:
-				return "%3.0f%s" % (num, unit)
-			else:
-				return "%2.1f%s" % (num, unit)
+				return f"{num:3.0f}{unit}"
+			return f"{num:2.1f}{unit}"
 
 		num /= 1024.0
 
@@ -349,11 +349,11 @@ def get_mail_users_ex(env, with_archived=False):
 		box_quota = 0
 		percent = ''
 		try:
-			dirsize_file = os.path.join(env['STORAGE_ROOT'], 'mail/mailboxes/%s/%s/maildirsize' % (domain, user))
-			with open(dirsize_file, 'r') as f:
+			dirsize_file = os.path.join(env['STORAGE_ROOT'], f'mail/mailboxes/{domain}/{user}/maildirsize')
+			with open(dirsize_file, encoding="utf-8") as f:
 				box_quota = int(f.readline().split('S')[0])
-				for line in f.readlines():
-					(size, count) = line.split(' ')
+				for line in f:
+					(size, _count) = line.split(' ')
 					box_size += int(size)
 
 			try:
@@ -373,11 +373,11 @@ def get_mail_users_ex(env, with_archived=False):
 			"email": email,
 			"privileges": privileges,
 			"quota": quota,
-			"status": "active",
 			"display_name": display_name,
 			"box_quota": box_quota,
 			"box_size": sizeof_fmt(box_size) if box_size != '?' else box_size,
-			"percent": '%3.0f%%' % percent if type(percent) != str else percent,
+			"percent": f'{percent:3.0f}%' if type(percent) != str else percent,
+			"status": "active",
 		}
 
 		users.append(user)
@@ -583,7 +583,7 @@ def get_mail_aliases_ex(env):
 
 	# Sort aliases within each domain first by required-ness then lexicographically by address.
 	for domain in domains:
-		domain["aliases"].sort(key = lambda alias : (alias["auto"], alias["address"]))
+		domain["aliases"].sort(key = operator.itemgetter("auto", "address"))
 	return domains
 
 def get_domain(emailaddr, as_unicode=True):
@@ -777,11 +777,11 @@ def add_mail_user(email, pw, privs, quota, display_name, env):
 	# validate email
 	if email.strip() == "":
 		return ("No email address provided.", 400)
-	elif not validate_email(email):
+	if not validate_email(email):
 		return ("Invalid email address.", 400)
-	elif not validate_email(email, mode='user'):
+	if not validate_email(email, mode='user'):
 		return ("User account email addresses may only use the lowercase ASCII letters a-z, the digits 0-9, underscore (_), hyphen (-), and period (.).", 400)
-	elif is_dcv_address(email) and len(get_mail_users(env)) > 0:
+	if is_dcv_address(email) and len(get_mail_users(env)) > 0:
 		# Make domain control validation hijacking a little harder to mess up by preventing the usual
 		# addresses used for DCV from being user accounts. Except let it be the first account because
 		# during box setup the user won't know the rules.
@@ -955,11 +955,14 @@ def validate_quota(quota):
 	quota = quota.strip().upper()
 
 	if quota == "":
-		raise ValueError("No quota provided.")
+		msg = "No quota provided."
+		raise ValueError(msg)
 	if re.search(r"[\s,.]", quota):
-		raise ValueError("Quotas cannot contain spaces, commas, or decimal points.")
+		msg = "Quotas cannot contain spaces, commas, or decimal points."
+		raise ValueError(msg)
 	if not re.match(r'^[\d]+[GMK]?$', quota):
-		raise ValueError("Invalid quota.")
+		msg = "Invalid quota."
+		raise ValueError(msg)
 
 	return quota
 
@@ -1006,7 +1009,6 @@ def get_mail_password(email, env):
 	if len(user['userPassword'])==0:
 		raise ValueError("The user has no password (%s)" % email)
 	return user['userPassword']
-
 
 def remove_mail_user(email_idna, env):
 	# Remove the user as a valid user of the system.
@@ -1058,13 +1060,13 @@ def get_mail_user_privileges(email, env, empty_on_error=False):
 
 	if user is None:
 		if empty_on_error: return []
-		return ("That's not a user (%s)." % email, 400)
+		return (f"That's not a user ({email}).", 400)
 
 	return user['mailaccess']
 
 def validate_privilege(priv):
 	if "\n" in priv or priv.strip() == "":
-		return ("That's not a valid privilege (%s)." % priv, 400)
+		return (f"That's not a valid privilege ({priv}).", 400)
 	return None
 
 def add_remove_mail_user_privilege(email, priv, action, env):
@@ -1210,7 +1212,7 @@ def add_mail_alias(address_utf8, description, forwards_to, permitted_senders, en
 	if address == "":
 		return ("No email address provided.", 400)
 	if not validate_email(address, mode='alias'):
-		return ("Invalid email address (%s)." % address, 400)
+		return (f"Invalid email address ({address}).", 400)
 
 	# retrieve all logins as a map, keyed by lowercase email
 	#     mail.lower() => {mail,maildrop,dn}
@@ -1250,7 +1252,7 @@ def add_mail_alias(address_utf8, description, forwards_to, permitted_senders, en
 				# Strip any +tag from email alias and check privileges
 				privileged_email = re.sub(r"(?=\+)[^@]*(?=@)",'',email_idna)
 				if not validate_email(email_idna):
-					return ("Invalid receiver email address (%s)." % email_utf8, 400)
+					return (f"Invalid receiver email address ({email_utf8}).", 400)
 				if is_dcv_source and not is_dcv_address(email_idna) and "admin" not in get_mail_user_privileges(privileged_email, env, empty_on_error=True):
 					# Make domain control validation hijacking a little harder to mess up by
 					# requiring aliases for email addresses typically used in DCV to forward
@@ -1272,7 +1274,7 @@ def add_mail_alias(address_utf8, description, forwards_to, permitted_senders, en
 			login = login.strip()
 			if login == "": continue
 			if login.lower() not in valid_logins:
-				return ("Invalid permitted sender: %s is not a user on this system." % login, 400)
+				return (f"Invalid permitted sender: {login} is not a user on this system.", 400)
 			validated_permitted_senders.append(valid_logins[login.lower()]['dn'])
 
 	# Make sure the alias has either a forwards_to or a permitted_sender.
@@ -1430,7 +1432,7 @@ def remove_mail_alias(address_utf8, env, do_kick=True, auto=None, ignore_if_not_
 	elif ignore_if_not_exists:
 		return ""
 	else:
-		return ("That's not an alias (%s)." % address, 400)
+		return (f"That's not an alias ({address}).", 400)
 
 	if existing_permitted_senders:
 		conn.delete(existing_permitted_senders['dn'])
