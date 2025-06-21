@@ -25,6 +25,14 @@ echo "Installing Mail-in-a-Box system management daemon..."
 # provision free TLS certificates.
 apt_install duplicity python3-pip virtualenv certbot rsync
 
+# Install the duplicity python module if it's missing from the system
+# package, and remove it if it isn't. (starting with duplicity>=3.0.5)
+if [ ! -e /usr/lib/python3/dist-packages/duplicity/__main__.py ]; then
+    hide_output python3 -m pip install --upgrade duplicity
+elif [ -e /usr/local/lib/python3/dist-packages/duplicity/__main__.py ]; then
+    hide_output python3 -m pip uninstall duplicity
+fi
+
 # b2sdk is used for backblaze backups.
 # boto3 is used for amazon aws backups.
 # Both are installed outside the pipenv, so they can be used by duplicity
