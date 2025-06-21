@@ -10,10 +10,13 @@
 
 # Munin: resource monitoring tool
 #################################################
-[ "${FEATURE_MUNIN:-true}" == "false" ] && return 0
-
 source setup/functions.sh # load our functions
 source /etc/mailinabox.conf # load global vars
+
+if [ "${FEATURE_MUNIN:-true}" = "false" ]; then
+    echo "Skipping Munin (feature disabled)"
+    return 0
+fi
 
 # install Munin
 echo "Installing Munin (system monitoring)..."

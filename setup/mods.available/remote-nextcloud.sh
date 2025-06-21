@@ -27,7 +27,7 @@ ZPUSH_DIR=/usr/local/lib/z-push
 configure_zpush() {
     # have zpush use the remote nextcloud for carddav/caldav
     # instead of the nextcloud that comes with mail-in-a-box
-    
+
     cp setup/mods.available/conf/zpush/backend_carddav.php $ZPUSH_DIR/backend/carddav/config.php
     cp setup/mods.available/conf/zpush/backend_caldav.php $ZPUSH_DIR/backend/caldav/config.php
     local var val
@@ -35,7 +35,7 @@ configure_zpush() {
         eval "val=\$$var"
         sed -i "s^$var^${val%/}^g" $ZPUSH_DIR/backend/carddav/config.php
         sed -i "s^$var^${val%/}^g" $ZPUSH_DIR/backend/caldav/config.php
-    done    
+    done
 }
 
 
@@ -43,7 +43,7 @@ configure_roundcube() {
     # replace the plugin configuration from the default Mail-In-A-Box
     local name="${1:-$NC_HOST}"
     local baseurl="$NC_PROTO://$NC_HOST:$NC_PORT$NC_PREFIX"
-    
+
     # Configure CardDav plugin
     #
     # 1. make MiaB ownCloud contacts read-only so users can still
@@ -136,8 +136,8 @@ with open(path) as fp:
 # output the modified xml
 root.write(
     sys.stdout.buffer,
-    encoding='utf-8', 
-    xml_declaration=False, 
+    encoding='utf-8',
+    xml_declaration=False,
     short_empty_elements=False
 )
 " > $tmpfile
@@ -161,7 +161,7 @@ remote_nextcloud_handler() {
 
     local ans
     local current_url=""
-    
+
     if [ -z "${NC_HOST:-}" ]; then
         if [ -z "${NONINTERACTIVE:-}" ]; then
             read -p "[your Nextcloud's hostname/prefix] " ans
@@ -173,7 +173,7 @@ remote_nextcloud_handler() {
             read -p "[$current_url] " ans
             if [ -z "$ans" ]; then
                 ans="$current_url"
-            
+
             elif [ "$ans" == "none" ]; then
                 ans=""
             fi
@@ -198,15 +198,15 @@ remote_nextcloud_handler() {
             NC_PORT="443"
             ;;
     esac
-    
+
     NC_PREFIX="/$(awk -F/ '{print substr($0,length($1)+2)}' <<< "$ans")"
     NC_HOST="$(awk -F/ '{print $1}' <<< "$ans")"
-    
+
     if grep ":" <<< "$NC_HOST" >/dev/null; then
         NC_PORT="$(awk -F: '{print $2}'  <<< "$NC_HOST")"
         NC_HOST="$(awk -F: '{print $1}' <<< "$NC_HOST")"
     fi
-    
+
     local new_url="$NC_PROTO://$NC_HOST:$NC_PORT$NC_PREFIX"
 
     if [ ! -z "$NC_HOST" ]; then
@@ -240,27 +240,31 @@ remote_nextcloud_handler() {
 
         # configure roundcube contacts
         configure_roundcube "$NC_HOST"
-        
+
         # configure zpush (which links to contacts & calendar)
         configure_zpush
 
         # update ios mobileconfig.xml
         update_mobileconfig "$NC_HOST" "$NC_PORT" "$NC_PROTO" "$new_url/remote.php/dav/addressbooks/"
 
-        
-        # prevent nginx from serving any miab-installed nextcloud
-        # files and remove owncloud cron job
-        chmod 000 /usr/local/lib/owncloud
+
+        # nuke the miab-installed nextcloud files (700MB!) and remove
+        # the owncloud cron job. prevent re-installation by setting
+        # FEATURE_NEXTCLOUD=false
+
         rm -f /etc/cron.d/mailinabox-nextcloud
+        rm -rf /usr/local/lib/owncloud
+        tools/editconf.py /etc/mailinabox.conf "FEATURE_NEXTCLOUD=false"
+
 
         # allow the remote nextcloud access to our ldap server
-        
+
         # 1. remove existing firewall rules
         local from_ips=( $(ufw status | awk '/remote_nextcloud/ {print $3}') )
         for ip in "${from_ips[@]}"; do
             hide_output ufw delete allow proto tcp from "$ip" to any port ldaps
         done
-        
+
         # 2. add new firewall rules
         #
         # if the ip address used by the Nextcloud server to contact
@@ -281,12 +285,12 @@ remote_nextcloud_handler() {
                 echo "Warning: $NC_HOST could not be resolved to an IP address, so no firewall rules were added to allow $NC_HOST to query the LDAP server. You may have to add ufw rules manually to allow the remote nextcloud to query ldaps port 636/tcp."
             fi
         fi
-            
+
         for ip in "${from_ips[@]}"; do
             hide_output ufw allow proto tcp from "$ip" to any port ldaps comment "remote_nextcloud"
         done
     fi
-    
+
     tools/editconf.py /etc/mailinabox_mods.conf \
                       "NC_PROTO=$NC_PROTO" \
                       "NC_HOST=$NC_HOST" \
