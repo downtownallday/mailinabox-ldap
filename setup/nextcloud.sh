@@ -10,17 +10,18 @@
 
 # Nextcloud
 ##########################
-if [ "${FEATURE_NEXTCLOUD:-true}" == "false" ]; then
-    source /etc/mailinabox.conf # load global vars
-    # ensure this log file exists or fail2ban won't start
+source setup/functions.sh # load our functions
+source setup/functions-downloads.sh
+source /etc/mailinabox.conf # load global vars
+
+if [ "${FEATURE_NEXTCLOUD:-true}" = "false" ]; then
+    # ensure the owncloud log file exists or fail2ban won't start
+    echo "Skipping Nextcloud (feature disabled)"
     mkdir -p $STORAGE_ROOT/owncloud
     touch $STORAGE_ROOT/owncloud/nextcloud.log
     return 0
 fi
 
-source setup/functions.sh # load our functions
-source setup/functions-downloads.sh
-source /etc/mailinabox.conf # load global vars
 
 # ### Installing Nextcloud
 
