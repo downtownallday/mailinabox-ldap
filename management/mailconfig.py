@@ -997,7 +997,7 @@ def dovecot_quota_recalc(email):
 	# subprocess.call(['doveadm', 'reload'])
 
 	# force dovecot to recalculate the quota info for the user.
-	subprocess.call(["doveadm", "quota", "recalc", "-u", email])
+	utils.shell("check_call", ["doveadm", "quota", "recalc", "-u", email])
 
 def get_mail_password(email, env):
 	# Gets the hashed passwords for a user. In ldap, userPassword is
