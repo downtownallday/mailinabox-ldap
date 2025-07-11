@@ -427,7 +427,7 @@ test_mailbox_quotas() {
             local postid="$(awk '/^data: .* queued as/  { match($0," as "); print substr($0,RSTART+4,10); exit }' <<<"$output" 2>>$TEST_OF)"
             record "Extracted POSTID=$postid"
             if [ ! -z "$postid" ]; then
-                /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
+                postsuper -r ALL >>"$TEST_OF" 2>&1 && /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
                 flush_logs
                 record "[dovecot and postfix logs for msg $msgidx]"
                 record "logs: $(grep "$postid" /var/log/mail.log)"
