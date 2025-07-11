@@ -166,7 +166,7 @@ init_miab_testing() {
     echo "Install chromium, selenium"
     exec_no_output snap install chromium \
         || die "Unable to install chromium!"
-    exec_no_output python3 -m pip install "selenium>=4.4" --quiet \
+    exec_no_output apt-get install -y python3-selenium \
         || die "Selenium install failed!"
 
     # tell git our directory is safe (new requirement for git 2.35.2)

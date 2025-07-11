@@ -208,7 +208,7 @@ if ! $dry_run; then
     #exec_no_output apt-get install -y chromium-browser || let failed+=1
     exec_no_output snap install chromium || let failed+=1
     H2 "selenium(pip)"
-    exec_no_output python3 -m pip install selenium --quiet || let failed+=1
+    exec_no_output apt-get install -y python3-selenium || let failed+=1
 
     # remove apache, which is what setup will do
     H2 "remove apache2"
