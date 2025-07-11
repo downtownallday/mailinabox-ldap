@@ -427,8 +427,19 @@ test_mailbox_quotas() {
             local postid="$(awk '/^data: .* queued as/  { match($0," as "); print substr($0,RSTART+4,10); exit }' <<<"$output" 2>>$TEST_OF)"
             record "Extracted POSTID=$postid"
             if [ ! -z "$postid" ]; then
-                postsuper -r ALL >>"$TEST_OF" 2>&1 && /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
-                flush_logs
+                let n=1
+                while [ $n -lt 4 ]; do
+                    flush_logs
+                    if [ -z "$(grep "$postid" /var/log/mail.log | grep "status=")" ]; then
+                        postsuper -r ALL >>"$TEST_OF" 2>&1 && /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
+                        record "Wait for postfix queue to flush..."
+                        sleep 2
+                        let n+=1
+                    else
+                        break
+                    fi
+                done
+
                 record "[dovecot and postfix logs for msg $msgidx]"
                 record "logs: $(grep "$postid" /var/log/mail.log)"
 
