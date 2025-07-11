@@ -18,10 +18,14 @@
 # 1. the test user can still log in and send mail
 
 echo "[User can still log in with their old passwords and send mail]" 1>&2
-echo "python3 test_mail.py $PRIVATE_IP $TEST_USER $TEST_USER_PASS" 1>&2
+/usr/sbin/postqueue -f
+echo "python3 test_mail.py -timeout 60 $PRIVATE_IP $TEST_USER $TEST_USER_PASS" 1>&2
 python3 test_mail.py "$PRIVATE_IP" "$TEST_USER" "$TEST_USER_PASS" 1>&2
 if [ $? -ne 0 ]; then
+    /usr/sbin/postqueue -p
     echo "Basic mail functionality test failed"
+    echo "[recent lines from mail.log]"
+    tail -30 /var/log/mail.log
     exit 1
 fi
 
@@ -61,4 +65,3 @@ fi
 
 echo "OK basic-verify passed"
 exit 0
-
