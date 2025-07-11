@@ -460,7 +460,14 @@ test_mailbox_quotas() {
         # verify cleanup worked
         local cur_count_messages="$(doveadm -f json quota get -u "$alice" | jq -r '.[] | select(.type=="MESSAGE") | .value')"
         if [ $count_messages -ne $cur_count_messages ]; then
-            test_failure "Cleanup failed: test account $alice started with $count_messages but ended up with $cur_count_messages"
+            # alice is sending to herself and may have received a
+            # non-delivery notification
+            if ! have_test_failures; then
+                let cur_count_messages-=1
+            fi
+            if [ $count_messages -ne $cur_count_messages ]; then
+                test_failure "Cleanup failed: test account $alice started with $count_messages messages but ended up with $cur_count_messages"
+            fi
         fi
     fi
 
