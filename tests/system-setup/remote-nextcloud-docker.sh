@@ -100,23 +100,27 @@ install_nextcloud_docker() {
     # wait for Nextcloud installation to complete
     H2 "Wait for Nextcloud installation to complete"
     wait_for_docker_nextcloud NC installed || die "Giving up"
-    
+
     # install and enable Nextcloud apps
     H2 "docker: install Nextcloud calendar app"
     if ! docker exec -u www-data NC ./occ app:install calendar
     then
         $container_started || die "docker: installing calendar app failed"
     fi
-    
+
     H2 "docker: install Nextcloud contacts app"
     if ! docker exec -u www-data NC ./occ app:install contacts
     then
         $container_started || die "docker: installing contacts app failed"
     fi
-    
+
     H2 "docker: enable user_ldap"
     docker exec -u www-data NC ./occ app:enable user_ldap \
         || die "docker: enabling user_ldap failed ($?)"
+
+    H2 "docker: disable firstrunwizard"
+    docker exec -u www-data NC ./occ app:disable firstrunwizard \
+        || die "docker: could not disable firstrunwizard"
 
     # ldap queries from the container use the container's ip address,
     # not the exposed docker port for nextcloud. the variable
@@ -137,7 +141,7 @@ get_container_ip() {
 connect_nextcloud_to_miab() {
     #
     # integrate Nextcloud with MiaB-LDAP
-    #    
+    #
     # add MiaB-LDAP's ca_certificate.pem to containers's trusted cert
     # list (because setup/ssl.sh created its own self-signed ca)
     H2 "docker: update trusted CA list"
@@ -174,10 +178,10 @@ do_upgrade() {
 
     # install w/o remote Nextcloud
     miab_ldap_install "$@"
-        
+
     # install Nextcloud in a Docker container. exports NC_HOST_SRC_IP.
     install_nextcloud_docker
-    
+
     H1 "Enable the remote-nextcloud mod"
     enable_miab_mod "remote-nextcloud" \
         || die "Could not enable remote-nextcloud mod"
@@ -202,7 +206,7 @@ do_default() {
     H1 "Enable remote-nextcloud mod"
     enable_miab_mod "remote-nextcloud" \
         || die "Could not enable remote-nextcloud mod"
-    
+
     # run setup to use the remote Nextcloud (doesn't need to be available)
     miab_ldap_install "$@"
 
@@ -236,11 +240,9 @@ case "$1" in
         #   2. install and connect the remote nextcloud
         do_default
         ;;
-    
+
     * )
         echo "Unknown option $1"
         exit 1
         ;;
 esac
-
-
