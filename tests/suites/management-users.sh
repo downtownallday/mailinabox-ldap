@@ -431,8 +431,7 @@ test_mailbox_quotas() {
                 while [ $n -le 4 ]; do
                     flush_logs
                     if [ -z "$(grep "$postid" /var/log/mail.log | grep "status=")" ]; then
-                        postsuper -r ALL >>"$TEST_OF" 2>&1
-                        /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
+                        postsuper -r ALL >>"$TEST_OF" 2>&1 && /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
                         record "Wait for postfix queue to flush..."
                         sleep 2
                         let n+=1
@@ -442,7 +441,8 @@ test_mailbox_quotas() {
                 done
 
                 record "[dovecot and postfix logs for msg $msgidx]"
-                record "logs: $(grep "$postid" /var/log/mail.log)"
+                record "grep mail.log for $postid: $(grep "$postid" /var/log/mail.log)"
+                record "grep journal for $postid: $(journalctl --system --grep="$postid" --case-sensitive=yes)"
 
                 if grep "$postid" /var/log/mail.log | grep "status=bounced" | grep -Fq "5.2.2"; then
                     # success - message was rejected
