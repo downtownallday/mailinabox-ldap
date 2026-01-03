@@ -424,7 +424,7 @@ test_mailbox_quotas() {
             # extract that, then grep the logs to see if the message
             # was bounced due to 5.2.2.
 
-            local postid="$(awk '/^data: .* queued as/  { match($0," as "); print substr($0,RSTART+4,10); exit }' <<<"$output" 2>>$TEST_OF)"
+            local postid="$(awk '/^data: .* queued as/  { match($0," as "); print substr($0,RSTART+4,10); exit }' <<<"$output" 2>>$TEST_OF | sed "s/'//g" 2>>$TEST_OF)"
             record "Extracted POSTID=$postid"
             if [ ! -z "$postid" ]; then
                 let n=1
