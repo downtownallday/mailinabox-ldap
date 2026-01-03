@@ -67,7 +67,7 @@ class NcContactsAutomation(object):
             throws=False
         )
         if not delete:
-            delete = d.find_text(
+            delete = el.find_text(
                 "Delete",
                 exact=True,
                 case_sensitive=True
