@@ -59,9 +59,12 @@ class NcContactsAutomation(object):
         )
 
         # click "delete"
+        # .delete-outline-icon (contacts >= 8.1.2)
         # .delete-icon (nc 25+)
         # .icon-delete (nc <25)
-        delete = el.find_el(
-            'span.delete-outline-icon,span.delete-icon,span.icon-delete'
+        delete = el.wait_for_el(
+            'span.delete-outline-icon,span.delete-icon,span.icon-delete',
+            must_be_displayed=True,
+            secs=2
         )
         delete.click()
