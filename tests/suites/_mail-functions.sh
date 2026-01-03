@@ -94,7 +94,7 @@ start_mail_capture() {
 		local count=0
 		if [ -e "$newdir" ]; then
 			count=$(ls "$newdir" 2>>$TEST_OF | wc -l)
-			[ $? -ne 0 ] && die "Error accessing mailbox of $email"			
+			[ $? -ne 0 ] && die "Error accessing mailbox of $email"
 		fi
 		DOVECOT_CAPTURE_FILECOUNT+=($count)
 		record "$mailbox location: $mbhome"
@@ -369,6 +369,10 @@ flush_logs() {
 	if [ ! -z "$pid" ]; then
 		kill -HUP $pid >>$TEST_OF 2>&1
 		sleep 2
+	else
+		echo "Could not flush logs: No pid found for rsyslogd!" >>$TEST_OF
+		echo "systemctl status syslog:" >>$TEST_OF
+		systemctl status syslog >>$TEST_OF 2>&1
 	fi
 }
 
@@ -377,7 +381,7 @@ check_logs() {
 	[ "$1" == "true" -o "$1" == "false" ] && shift
 	local types=($@)
 	[ ${#types[@]} -eq 0 ] && types=(syslog slapd mail)
-	
+
 	# flush records
 	flush_logs
 
@@ -385,12 +389,12 @@ check_logs() {
 		detect_syslog_error && $assert &&
 			test_failure "detected errors in syslog"
 	fi
-	
+
 	if array_contains slapd ${types[@]}; then
 		detect_slapd_log_error && $assert &&
 			test_failure "detected errors in slapd log"
 	fi
-	
+
 	if array_contains mail ${types[@]}; then
 		detect_mail_log_error && $assert &&
 			test_failure "detected errors in mail log"
@@ -495,7 +499,7 @@ sendmail_bv_send() {
 		test_failure "Error executing sendmail"
 	else
 		wait_mail $timeout || test_failure "Timeout waiting for delivery report"
-	fi	  
+	fi
 }
 
 
