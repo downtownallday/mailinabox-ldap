@@ -1,4 +1,3 @@
-# -*- indent-tabs-mode: nil; -*-
 #####
 ##### This file is part of Mail-in-a-Box-LDAP which is released under the
 ##### terms of the GNU Affero General Public License as published by the
@@ -110,7 +109,7 @@ class FirefoxTestDriver(Firefox):
         from selenium.webdriver.firefox.service import Service as FirefoxService
         service = FirefoxService(
             executable_path='/usr/local/bin/geckodriver'
-	)
+        )
 
         super(FirefoxTestDriver, self).__init__(
             service=service,
@@ -350,7 +349,10 @@ class TestDriver(object):
             if throws: raise e
             else: return None
 
-    def find_text(self, text, tag='*', exact=False, throws=True, quiet=False, case_sensitive=False):
+    def find_text(self, text, tag='*', exact=False, throws=True, quiet=False, case_sensitive=False, _start_node=None):
+        start_node = self.driver
+        if _start_node:
+            start_node = _start_node
         if not quiet:
             self.say_verbose("find text: '%s' tag=%s exact=%s",
                              text, tag, exact)
@@ -370,7 +372,7 @@ class TestDriver(object):
                     lc = text.lower()
                     xpath = "//%s[contains(translate(text(),'%s','%s'),'%s')]" % (tag, lc, uc, uc)
 
-            el = self.driver.find_element(by=By.XPATH, value=xpath)
+            el = start_node.find_element(by=By.XPATH, value=xpath)
             return ElWrapper(self, el)
         except NoSuchElementException as e:
             if throws: raise e
@@ -478,6 +480,17 @@ class ElWrapper(object):
         except (IndexError, NoSuchElementException) as e:
             if throws: raise e
             else: return None
+
+    def find_text(self, text, tag='*', exact=False, throws=True, quiet=False, case_sensitive=False):
+        return self.driver.find_text(
+            text,
+            tag=tag,
+            exact=exact,
+            throws=throws,
+            quiet=quiet,
+            case_sensitive=case_sensitive,
+            _start_node=self.el
+        )
 
     def is_enabled(self):
         return self.el.is_enabled()
