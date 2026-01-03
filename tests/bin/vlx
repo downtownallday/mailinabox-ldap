@@ -156,6 +156,19 @@ vlx_ipaddr() {
 
 
 vlx_ssh() {
+    # ssh to vm
+    # usage: vlx ssh [extra ssh args ...] [host] [-- remote command ...]
+    # extra ssh args:
+    #   eg: listen on client port 8001 and forward connections to docker nextcloud on port 8000 inside the vm
+    #
+    #      vlx ssh -L8001:127.0.0.1:8000
+    #
+    local x_ssh_args=()
+    while [ "${1:0:1}" = "-" -a "$1" != "--" ]; do
+        x_ssh_args+="$1"
+        shift
+    done
+
     local host="$1"
     if [ "$host" = "--" ]; then
         host=""
@@ -176,9 +189,9 @@ vlx_ssh() {
     local id="$(lx_get_ssh_identity)"
     local known_hosts="$(lx_get_ssh_known_hosts)"
     local vmuser="vmuser"
-    #echo ssh -i "$id" -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=no "$vmuser@$host" "$@"
+    #echo ssh -i "$id" -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=no "${x_ssh_args[@]}" "$vmuser@$host" "$@"
     echo "Connecting to $vmuser@$host ..."
-    ssh -i "$id" -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=no "$vmuser@$host" "$@"
+    ssh -i "$id" -o UserKnownHostsFile="$known_hosts" -o StrictHostKeyChecking=no "${x_ssh_args[@]}" "$vmuser@$host" "$@"
 }
 
 vlx_list() {
