@@ -428,12 +428,13 @@ test_mailbox_quotas() {
             record "Extracted POSTID=$postid"
             if [ ! -z "$postid" ]; then
                 let n=1
-                while [ $n -le 8 ]; do
+                while [ $n -le 4 ]; do
                     flush_logs
                     if [ -z "$(grep "$postid" /var/log/mail.log | grep "status=")" ]; then
-                        postsuper -r ALL >>"$TEST_OF" 2>&1 && /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
+                        postsuper -r ALL >>"$TEST_OF" 2>&1
+                        /usr/sbin/postqueue -f >>"$TEST_OF" 2>&1
                         record "Wait for postfix queue to flush..."
-                        sleep 4
+                        sleep 2
                         let n+=1
                     else
                         break
