@@ -54,10 +54,20 @@ class NcContactsAutomation(object):
         # .popover (nc <25)
         el = d.wait_for_el(
             '.v-popper__popper,.popover',
+            throws=False,
             must_be_displayed=True,
             secs=2
         )
-        # click "delete"
-        # .delete-icon (nc 25+)
-        # .icon-delete (nc <25)
-        delete = el.find_el('span.delete-icon,span.icon-delete').click()
+        if el:
+            # click "delete"
+            # .delete-icon (nc 25+)
+            # .icon-delete (nc <25)
+            el.find_el('span.delete-icon,span.icon-delete').click()
+        else:
+            el = d.wait_for_el(
+                '.v-popper__popper,.v-popper__popper--shown',
+                must_be_displayed=True,
+                secs=2
+            )
+            # click "delete"
+            el.find_el('span.delete-outline-icon').click()
