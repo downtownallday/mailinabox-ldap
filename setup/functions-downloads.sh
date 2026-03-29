@@ -307,9 +307,9 @@ get_nc_download_url() {
         fi
         
         case "$ver" in
-            latest )
-                url="https://download.nextcloud.com/server/releases/latest.${ext#.}"
-                url_cache_id="latest.${ext#.}"
+            latest | latest-[0-9]* )
+                url="https://download.nextcloud.com/server/releases/${ver}.${ext#.}"
+                url_cache_id="${ver}.${ext#.}"
                 ;;
 
             *rc* )
