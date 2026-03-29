@@ -13,14 +13,14 @@ jobs:
       PRIMARY_HOSTNAME: box1.abc.com
       EHDD_KEYFILE: /tmp/keyfile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: create ehdd keyfile
         run: sudo -E echo -n "secret" >/tmp/keyfile
       - name: setup
         run: sudo -E tests/system-setup/remote-nextcloud-docker.sh
       - name: test-runner
         run: sudo -E tests/runner.sh -dumpoutput -no-smtp-remote remote-nextcloud ehdd default
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: tests-output
@@ -35,7 +35,7 @@ jobs:
       PRIMARY_HOSTNAME: box2.abc.com
       UPSTREAM_TAG: main
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: setup
         run: sudo -E tests/system-setup/upgrade-from-upstream.sh --populate=basic --populate=totpuser
       - name: test-runner
