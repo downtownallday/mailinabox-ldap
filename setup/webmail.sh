@@ -49,8 +49,8 @@ apt_install php"${PHP_VER}"-ldap
 #   https://github.com/mstilkerich/rcmcarddav/releases
 # The easiest way to get the package hashes is to run this script and get the hash from
 # the error message.
-VERSION=1.6.13
-HASH=a064ce12858ce4db4f69db64504039d40e294bd0
+VERSION=1.6.15
+HASH=1228dce33d7dd4085529d0ccc920deb603cd4e04
 PERSISTENT_LOGIN_VERSION=version-5.3.0
 HTML5_NOTIFIER_VERSION=68d9ca194212e15b3c7225eb6085dbcf02fd13d7 # version 0.6.4+
 CARDDAV_VERSION=4.4.3
