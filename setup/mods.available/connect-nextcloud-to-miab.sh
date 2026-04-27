@@ -85,15 +85,15 @@ Configure Nextcloud to use MiaB-LDAP for users and groups
 Optionally configure a mail relay to MiaB-LDAP
 
 Arguments:
-    NCDIR               
+    NCDIR
         the path to the local Nextcloud installation directory
     NC_ADMIN_USER
         a current Nextcloud username that has ADMIN rights
-    NC_ADMIN_PASSWORD         
+    NC_ADMIN_PASSWORD
         the password for NC_ADMIN
-    MIAB_HOSTNAME       
+    MIAB_HOSTNAME
         the fully-qualified host name of MiaB-LDAP
-    LDAP_NEXTCLOUD_PASS 
+    LDAP_NEXTCLOUD_PASS
         supply the password for the LDAP service account Nextcloud
         uses to locate and enumerate users and groups. A MiaB-LDAP
         installation automatically creates this limited-access service
@@ -142,10 +142,10 @@ miab_constants() {
 test_ldap_connection() {
     say_verbose "Installing system package ldap-utils"
     exec_no_output apt-get install -y -qq ldap-utils || die "Could not install required packages"
-    
+
     local count=0
     local ldap_debug=""
-    
+
     while /bin/true; do
         # ensure we can search
         local output
@@ -177,7 +177,7 @@ test_ldap_connection() {
             read -p "Press [enter] when ready, or \"no\" to give up: " ans
             [ "$ans" == "no" ] && die "Abandoning MiaB-LDAP integration"
             ldap_debug="-d 9"
-            
+
         else
             say "Test successful - able to bind and search as $LDAP_NEXTCLOUD_DN"
             break
@@ -311,23 +311,23 @@ config_user_ldap() {
         "--data-urlencode configData[ldapPort]=$LDAP_SERVER_PORT"
         "--data-urlencode configData[ldapBase]=$LDAP_USERS_BASE"
         "--data-urlencode configData[ldapTLS]=$starttls"
-        
+
         "--data-urlencode configData[ldapAgentName]=$LDAP_NEXTCLOUD_DN"
         "--data-urlencode configData[ldapAgentPassword]=$LDAP_NEXTCLOUD_PASSWORD"
-        
+
         "--data-urlencode configData[ldapUserDisplayName]=cn"
         "--data-urlencode configData[ldapUserDisplayName2]="
         "--data-urlencode configData[ldapUserFilter]=(&(objectClass=inetOrgPerson)(objectClass=mailUser))"
         "--data-urlencode configData[ldapUserFilterMode]=1"
         "--data-urlencode configData[ldapLoginFilter]=(&(objectClass=inetOrgPerson)(objectClass=mailUser)(|(mail=%uid)(uid=%uid)))"
         "--data-urlencode configData[ldapEmailAttribute]=mail"
-        
+
         "--data-urlencode configData[ldapGroupFilter]=(objectClass=mailGroup)"
         "--data-urlencode configData[ldapGroupMemberAssocAttr]=member"
         "--data-urlencode configData[ldapGroupDisplayName]=mail"
         "--data-urlencode configData[ldapNestedGroups]=1"
         "--data-urlencode configData[turnOnPasswordChange]=1"
-        
+
         "--data-urlencode configData[ldapExpertUsernameAttr]=maildrop"
         "--data-urlencode configData[ldapExpertUUIDUserAttr]=uid"
         "--data-urlencode configData[ldapExpertUUIDGroupAttr]=entryUUID"
@@ -347,10 +347,10 @@ config_user_ldap() {
     if [ -z "$xml" ]; then
         die "Invalid response from Nextcloud using url '$NC_AUTH_URL'. reponse was '$xml'. Cannot continue."
     fi
-        
+
     local statuscode
     statuscode=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.fromstring(r'''$xml''').findall('meta')[0].findall('statuscode')[0].text)")
-    
+
     if [ "$statuscode" == "404" -a "$first_call" == "yes" ]; then
         # got a 404 so maybe this is the first time -- we have to create
         # an initial blank ldap configuration and try again
@@ -360,17 +360,17 @@ config_user_ldap() {
         statuscode=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.fromstring(r'''$xml''').findall('meta')[0].findall('statuscode')[0].text)")
         [ $? -ne 0 -o "$statuscode" != "200" ] &&
             die "Error creating initial ldap configuration: $xml"
-        
+
         id=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.fromstring(r'''$xml''').findall('data')[0].findall('configID')[0].text)" 2>/dev/null)
         [ $? -ne 0 ] &&
             die "Error creating initial ldap configuration: $xml"
-        
+
         config_user_ldap "$id" no
 
     elif [ "$statuscode" == "997" -a "$first_call" == "yes" ]; then
         # could not log in
         die_with_code 3 "Could not authenticate as $NC_ADMIN_USER to perform user-ldap API call. statuscode=$statuscode: $xml"
-        
+
     elif [ "$statuscode" != "200" ]; then
         die "Unable to apply ldap configuration to nextcloud: id=$id first_call=$first_call statuscode=$statuscode: $xml"
     fi
@@ -382,8 +382,8 @@ config_user_ldap() {
 enable_user_ldap() {
     # install prerequisite package php-ldap
     # if using Docker Hub's php image, don't install at all
-    
-    if [ ! -e /etc/apt/preferences.d/no-debian-php ]; then        
+
+    if [ ! -e /etc/apt/preferences.d/no-debian-php ]; then
         # on a cloud-in-a-box installation, get the php version that
         # nextcloud uses, otherwise install the system php
         local php="${REQUIRED_PHP_PACKAGE:-php}"
@@ -402,13 +402,13 @@ enable_user_ldap() {
         exec_no_output apt-get install -y -qq $php-ldap || die "Could not install $php-ldap package"
         #restart_service $php-fpm
     fi
-    
+
     # enable user_ldap
     if [ ! -x /usr/bin/sudo ]; then
         say "WARNING: sudo is not installed: Unable to run occ to check and/or enable Nextcloud app \"user-ldap\"."
     else
         say_verbose "Enable user-ldap"
-        sudo -E -u www-data ${REQUIRED_PHP_EXECUTABLE:-php} $NCDIR/occ app:enable user_ldap -q
+        sudo -u www-data ${REQUIRED_PHP_EXECUTABLE:-php} $NCDIR/occ app:enable user_ldap -q
         [ $? -ne 0 ] && die "Unable to enable user_ldap nextcloud app"
     fi
 }
@@ -417,10 +417,10 @@ install_app() {
     local app="$1"
     if [ ! -x /usr/bin/sudo ]; then
         say "WARNING: sudo is not installed: Unable to run occ to check and/or install Nextcloud app \"$app\"."
-        
-    elif [ -z "$(sudo -E -u www-data ${REQUIRED_PHP_EXECUTABLE:-php} $NCDIR/occ app:list | grep -F "${app}:")" ]; then
+
+    elif [ -z "$(sudo -u www-data ${REQUIRED_PHP_EXECUTABLE:-php} $NCDIR/occ app:list | grep -F "${app}:")" ]; then
         say_verbose "Install app '$app'"
-        sudo -E -u www-data ${REQUIRED_PHP_EXECUTABLE:-php} $NCDIR/occ app:install $app
+        sudo -u www-data ${REQUIRED_PHP_EXECUTABLE:-php} $NCDIR/occ app:install $app
         [ $? -ne 0 ] && die "Unable to install Nextcloud app '$app'"
     fi
 }
@@ -433,14 +433,14 @@ setup_ssmtp() {
     if [ "$(. /etc/os-release; echo $NAME)" != "Ubuntu" ]; then
         die "Sorry, ssmtp is only supported on Ubuntu"
     fi
-    
+
     say_verbose "Installing system package ssmtp"
     exec_no_output apt-get install -y -qq ssmtp
 
     if [ ! -e /etc/ssmtp/ssmtp.conf.orig ]; then
         cp /etc/ssmtp/ssmtp.conf /etc/ssmtp/ssmtp.conf.orig
     fi
-    
+
     cat <<EOF >/etc/ssmtp/ssmtp.conf
 # Generated by MiaB-LDAP integration script on $(date)
 
