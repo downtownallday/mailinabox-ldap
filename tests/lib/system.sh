@@ -67,12 +67,21 @@ update_system_time() {
         echo "ntpd is already running, not updating time"
         return 0
     fi
-    if [ ! -x /usr/sbin/ntpdate ]; then
-        echo "Installing ntpdate"
-        wait_for_apt
-        exec_no_output apt-get install -y ntpdate || return 1
+    if systemctl is-active --quiet chrony; then
+        echo "chrony is already running, not updating time"
+        return 0
     fi
-    ntpdate ntp.ubuntu.com
+
+    if [ -x /usr/sbin/chronyd ]; then
+        chronyd -q -L 1 # sync and quit
+    else
+        if [ ! -x /usr/sbin/ntpdate ]; then
+            echo "Installing ntpdate"
+            wait_for_apt
+            exec_no_output apt-get install -y ntpdate || return 1
+        fi
+        ntpdate ntp.ubuntu.com
+    fi
 }
 
 set_system_hostname() {
