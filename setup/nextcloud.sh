@@ -355,6 +355,7 @@ php"$PHP_VER" <<EOF > "$CONFIG_TEMP" && mv "$CONFIG_TEMP" "$STORAGE_ROOT/ownclou
 include("$STORAGE_ROOT/owncloud/config.php");
 
 \$CONFIG['config_is_read_only'] = false;
+\$CONFIG['appstoreenabled'] = false; # https://discourse.mailinabox.email/t/problems-with-z-push-and-nextcloud-likely-after-package-updates-today/16460/21
 
 \$CONFIG['trusted_domains'] = array('$PRIMARY_HOSTNAME');
 
