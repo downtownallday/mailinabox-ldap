@@ -74,14 +74,26 @@ class NextcloudAutomation(object):
     def open_contacts(self):
         d = self.d
         d.say("Open contacts")
-        # nc 25+
-        el = d.find_el('header [title="Contacts"]', throws=False)
+
+        # nc 34+
+        # is "waffle" menu already open?
+        el = d.find_el('a[title="Contacts"]', throws=False)
         if not el:
-            # nc < 29
-            el = d.find_el('header [data-app-id="contacts"]', throws=False)
+            # no
+            el = d.find_el('header button.app-menu__waffle', throws=False)
+            if el:
+                el.click()
+                el = d.wait_for_el('a[title="Contacts"]', 5)
+
         if not el:
-            # nc < 25
-            el = d.find_el('header [data-id="contacts"]')
+            # nc 25+
+            el = d.find_el('header [title="Contacts"]', throws=False)
+            if not el:
+                # nc < 29
+                el = d.find_el('header [data-app-id="contacts"]', throws=False)
+                if not el:
+                    # nc < 25
+                    el = d.find_el('header [data-id="contacts"]')
         self.close_first_run_wizard()
         el.click()
         return NcContactsAutomation(self)
