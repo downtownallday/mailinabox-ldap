@@ -23,7 +23,7 @@ echo "Installing Mail-in-a-Box system management daemon..."
 #
 # certbot installs EFF's certbot which we use to
 # provision free TLS certificates.
-apt_install duplicity python3-pip virtualenv certbot rsync
+apt_install duplicity python3-gnupg python3-pip virtualenv certbot rsync
 
 # Install the duplicity python module if it's missing from the system
 # package, and remove it if it isn't. (starting with duplicity>=3.0.5)
