@@ -39,8 +39,8 @@ echo "Installing Nextcloud (contacts/calendar)..."
 #   we automatically install intermediate versions as needed.
 # * The hash is the SHA1 hash of the ZIP package, which you can find by just running this script and
 #   copying it from the error message when it doesn't match what is below.
-nextcloud_ver=26.0.13
-nextcloud_hash=d5c10b650e5396d5045131c6d22c02a90572527c
+nextcloud_ver=27.1.11
+nextcloud_hash=9f30c01a021c2e5a9e7baff119955afb3c552ebc
 
 # Nextcloud apps
 # --------------
@@ -50,20 +50,20 @@ nextcloud_hash=d5c10b650e5396d5045131c6d22c02a90572527c
 #   https://github.com/nextcloud/user_external/tags
 #
 # * For these three packages, contact, calendar and user_external, the hash is the SHA1 hash of
-# the ZIP package, which you can find by just running this script and copying it from
-# the error message when it doesn't match what is below:
+# the release tarball (from the releases/download URL, not the source archive), which you can
+# find by running: curl -sL <url> | sha1sum
 
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/contacts
-contacts_ver=5.5.3
-contacts_hash=799550f38e46764d90fa32ca1a6535dccd8316e5
+contacts_ver=5.5.4
+contacts_hash=c4e3f2183a0088b829f8aa1b3af1f87c9a4c46a2
 
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/calendar
-calendar_ver=4.7.6
-calendar_hash=a995bca4effeecb2cab25f3bbeac9bfe05fee766
+calendar_ver=4.7.20
+calendar_hash=12d876904e227156e39ca4335b18481b42a6d00f
 
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/user_external
-user_external_ver=3.3.0
-user_external_hash=280d24eb2a6cb56b4590af8847f925c28d8d853e
+user_external_ver=3.4.0
+user_external_hash=7f9d8f4dd6adb85a0e3d7622d85eeb7bfe53f3b4
 
 # Developer advice (test plan)
 # ----------------------------
@@ -126,11 +126,11 @@ InstallNextcloud() {
 	# their github repositories.
 	mkdir -p /usr/local/lib/owncloud/apps
 
-	wget_verify "https://github.com/nextcloud-releases/contacts/archive/refs/tags/v$version_contacts.tar.gz" "$hash_contacts" /tmp/contacts.tgz
+	wget_verify "https://github.com/nextcloud-releases/contacts/releases/download/v$version_contacts/contacts-v$version_contacts.tar.gz" "$hash_contacts" /tmp/contacts.tgz
 	tar xf /tmp/contacts.tgz -C /usr/local/lib/owncloud/apps/
 	rm /tmp/contacts.tgz
 
-	wget_verify "https://github.com/nextcloud-releases/calendar/archive/refs/tags/v$version_calendar.tar.gz" "$hash_calendar" /tmp/calendar.tgz
+	wget_verify "https://github.com/nextcloud-releases/calendar/releases/download/v$version_calendar/calendar-v$version_calendar.tar.gz" "$hash_calendar" /tmp/calendar.tgz
 	tar xf /tmp/calendar.tgz -C /usr/local/lib/owncloud/apps/
 	rm /tmp/calendar.tgz
 
@@ -270,6 +270,10 @@ if [ ! -d /usr/local/lib/owncloud/ ] || [[ ! ${CURRENT_NEXTCLOUD_VER} =~ ^$nextc
 			InstallNextcloud 25.0.7 a5a565c916355005c7b408dd41a1e53505e1a080 5.3.0 4b0a6666374e3b55cfd2ae9b72e1d458b87d4c8c 4.4.2 21a42e15806adc9b2618760ef94f1797ef399e2f 3.2.0 a494073dcdecbbbc79a9c77f72524ac9994d2eec
 			CURRENT_NEXTCLOUD_VER="25.0.7"
 		fi
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^25 ]]; then
+			InstallNextcloud 26.0.13 d5c10b650e5396d5045131c6d22c02a90572527c 5.5.3 b234ab410480a4106176a28f39c9b27f471d0473 4.7.6 cf8e68e7d945ee71933f5bb71a969faf152da55c 3.3.0 280d24eb2a6cb56b4590af8847f925c28d8d853e
+			CURRENT_NEXTCLOUD_VER="26.0.13"
+		fi
 	fi
 
 	InstallNextcloud $nextcloud_ver $nextcloud_hash $contacts_ver $contacts_hash $calendar_ver $calendar_hash $user_external_ver $user_external_hash
@@ -355,6 +359,7 @@ php"$PHP_VER" <<EOF > "$CONFIG_TEMP" && mv "$CONFIG_TEMP" "$STORAGE_ROOT/ownclou
 include("$STORAGE_ROOT/owncloud/config.php");
 
 \$CONFIG['config_is_read_only'] = false;
+\$CONFIG['appstoreenabled'] = false; # https://discourse.mailinabox.email/t/problems-with-z-push-and-nextcloud-likely-after-package-updates-today/16460/21
 
 \$CONFIG['trusted_domains'] = array('$PRIMARY_HOSTNAME');
 
