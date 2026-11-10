@@ -67,7 +67,10 @@ class NextcloudAutomation(object):
             el = d.find_el('#logout > a', throws=False)
 
         if el:
-            el.click()
+            try:
+                el.click()
+            except ElementNotInteractableException as e:
+                d.get(el.get_attribute("href"))
         else:
             raise NoSuchElementException('could not find logout link')
 
