@@ -78,14 +78,14 @@ create_network_bridge() {
 
     else
         echo "NO HOST BRIDGE FOUND!!! CREATING ONE."
-        
+
         if [ "$isa_wifi_device" = "yes" ]; then
             echo "*********************************************************"
             echo "UNSUPPORTED: Host bridging is not available with WIFI ! (interface $default_network_interface)"
             echo "*********************************************************"
             return 1
         fi
-    
+
         echo "YOU WILL LOSE NETWORK CONNECTIVITY BRIEFLY"
         echo "To remove the host bridge, delete $bridge_yaml, then run netplan apply, or run this script with '-u'"
         vm_bridge="br-lxd0"
@@ -98,10 +98,12 @@ network:
             match:
                 name: $default_network_interface
             dhcp4: no
+            optional: true
     bridges:
         $vm_bridge:
             dhcp4: yes
-            interfaces: [ myeths ] 
+            optional: true
+            interfaces: [ myeths ]
 
 EOF
         if [ -e "$bridge_yaml" ]; then
@@ -182,10 +184,10 @@ if [ "$1" = "-u" ]; then
     # uninstall
     echo "Revert ufw rules"
     remove_ufw_rules
-    
+
     echo "Remove packages"
     remove_packages
-    
+
     echo "Remove network bridge"
     remove_network_bridge
 
@@ -201,9 +203,8 @@ else
 
     echo "Install ufw rules"
     install_ufw_rules "$vm_bridge" || exit 1
-    
+
     create_lxd_project_and_pool "$vm_bridge" || exit 1
 
     lx_create_ssh_identity || exit 1
 fi
-
